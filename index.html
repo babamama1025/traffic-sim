@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>進階號誌時制模擬與時空圖分析工具</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="main-content">
+            <div id="map-container">
+                <div id="map"></div>
+                <div id="time-display">模擬時間：<span id="clock">0</span> 秒</div>
+            </div>
+        </div>
+
+        <div id="sidebar">
+            <h2>控制面板</h2>
+            <div class="control-group">
+                <button id="btn-add-node">📍 建立路口</button>
+                <button id="btn-add-link">🔗 建立路段</button>
+                <button id="btn-select">🖱️ 選取</button>
+            </div>
+
+            <div class="control-group simulation-controls">
+                <button id="btn-play" class="btn-inactive">▶️ 開始模擬</button>
+                <button id="btn-pause" class="btn-inactive">⏸️ 暫停</button>
+                <button id="btn-reset" class="btn-inactive">↩️ 重設</button>
+                <div class="speed-row">
+                    <span>模擬速度 <strong id="speed-display">1x</strong></span>
+                    <input type="range" id="select-speed" min="1" max="32" value="1" step="1">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <button id="btn-arterial">📈 幹道分析</button>
+                <button id="btn-save">💾 儲存專案</button>
+                <input type="file" id="file-load" accept=".json" style="display: none;">
+                <button id="btn-load" onclick="document.getElementById('file-load').click()">📂 讀取專案</button>
+            </div>
+
+            <div id="node-status-panel" style="display:none;">
+                <h3>📍 路口即時狀態</h3>
+                <div id="node-status-content"></div>
+            </div>
+
+            <div id="editor-panel" style="display: none;">
+                <h3>時制計畫編輯器</h3>
+                <div class="form-group">
+                    <label>路口編號:</label>
+                    <input type="text" id="input-node-id" style="font-weight:bold;">
+                </div>
+                <div class="form-group">
+                    <label>路口名稱:</label>
+                    <input type="text" id="input-node-name" placeholder="（選填）">
+                </div>
+                <div class="form-group">
+                    <label>週期 (自動計算):</label>
+                    <strong id="display-cycle" style="color:#007bff;">— 秒</strong>
+                </div>
+                <div class="form-group">
+                    <label>時差 (秒):</label>
+                    <input type="number" id="input-offset" value="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label title="順時針偏轉角度，讓箭頭圖示對齊實際道路方向">路口方向角 (°):</label>
+                    <input type="number" id="input-bearing" value="0" title="順時針偏轉，0=東西向，45=東北-西南向">
+                </div>
+                <div id="phases-container"></div>
+                <button id="btn-add-phase">＋ 新增時相</button>
+                <button id="btn-save-plan">套用設定</button>
+                <button id="btn-delete-node" class="btn-danger-outline">🗑️ 刪除此路口</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 幹道時空圖分析 overlay -->
+    <div id="tsd-overlay">
+        <div id="tsd-panel">
+            <div class="tsd-header">
+                <h3>📈 幹道時空圖分析 (Time-Space Diagram)</h3>
+                <button id="btn-close-tsd">✕ 關閉</button>
+            </div>
+            <span class="tsd-hint">路口依經度由西向東排列，綠/黃/紅帶對應各路口號誌狀態</span>
+            <canvas id="ts-canvas"></canvas>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

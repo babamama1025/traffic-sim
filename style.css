@@ -1,0 +1,88 @@
+body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background: #eee; }
+#app { display: flex; height: 100vh; width: 100vw; }
+
+#main-content { flex: 1; display: flex; flex-direction: column; height: 100%; }
+#map-container { flex: 1; position: relative; min-height: 400px; }
+#map { width: 100%; height: 100%; }
+
+#sidebar { width: 320px; background: #f8f9fa; border-left: 1px solid #ccc; padding: 15px; box-sizing: border-box; overflow-y: auto; }
+.control-group { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+.simulation-controls { align-items: center; }
+
+button { padding: 8px 12px; cursor: pointer; border: 1px solid #aaa; border-radius: 4px; background: #fff; transition: all 0.2s; }
+button.active { background: #007bff; color: white; border-color: #0056b3; }
+
+/* 模擬按鈕顏色狀態 */
+.btn-inactive { background: #ffffff; color: #333; border: 1px solid #ccc; }
+.btn-play-active { background: #28a745 !important; color: white !important; border-color: #1e7e34 !important; font-weight: bold; }
+.btn-pause-active { background: #dc3545 !important; color: white !important; border-color: #bd2130 !important; font-weight: bold; }
+
+/* 速度 slider */
+.speed-row { width: 100%; display: flex; align-items: center; gap: 8px; padding-top: 2px; }
+.speed-row span { white-space: nowrap; font-size: 13px; min-width: 62px; }
+.speed-row input[type="range"] { flex: 1; cursor: pointer; accent-color: #007bff; }
+
+#time-display { position: absolute; top: 10px; left: 50px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 8px 15px; font-size: 16px; font-weight: bold; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+.form-group { margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.form-group input { width: 80px; padding: 4px; }
+
+/* 時相區塊 */
+.phase-block { background: #f0f4ff; border: 1px solid #c0d0f0; border-radius: 6px; padding: 10px; margin-top: 12px; }
+.phase-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.phase-header-btns { display: flex; gap: 4px; align-items: center; }
+.btn-phase-move { background: #fff; border: 1px solid #adb5bd; color: #444; padding: 1px 7px; font-size: 13px; cursor: pointer; border-radius: 3px; }
+.btn-phase-move:hover { background: #e9ecef; }
+.btn-del-phase { background: #fff; border: 1px solid #dc3545; color: #dc3545; padding: 2px 7px; font-size: 12px; cursor: pointer; border-radius: 3px; }
+.phase-timing { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; margin-bottom: 8px; align-items: center; }
+.phase-timing label { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+.phase-input { width: 42px; padding: 2px 4px; }
+.phase-total { color: #555; font-size: 12px; margin-left: 4px; }
+
+/* 動線表格 */
+.movement-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+.movement-table th, .movement-table td { text-align: center; padding: 4px 2px; border: 1px solid #d0d8e8; }
+.movement-table th { background: #dce6f5; font-weight: bold; }
+.movement-table td:first-child { text-align: left; padding-left: 6px; font-weight: bold; background: #eef2fb; }
+
+/* 衝突警告 */
+.conflict-warning { background: #fff0f0; border: 1px solid #f5c6cb; border-radius: 4px; padding: 5px 8px; margin-top: 6px; }
+
+/* 新增/套用時相按鈕 */
+#btn-add-phase { width: 100%; margin-top: 10px; background: #6c757d; color: white; border-color: #545b62; }
+#btn-save-plan { width: 100%; margin-top: 8px; background: #007bff; color: white; border-color: #0056b3; font-weight: bold; }
+.btn-danger-outline { width: 100%; margin-top: 10px; background: #fff; color: #dc3545; border-color: #dc3545; }
+.btn-danger-outline:hover { background: #dc3545; color: white; }
+
+/* 路口標記樣式（SVG 箭頭容器） */
+.intersection-icon { background: white; border: 2px solid #333; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+
+/* 路口選取彈窗 */
+.node-popup .leaflet-popup-content-wrapper { padding: 0; border-radius: 8px; overflow: hidden; min-width: 130px; box-shadow: 0 4px 16px rgba(0,0,0,0.28); }
+.node-popup .leaflet-popup-content { margin: 0; }
+.node-action-popup { display: flex; flex-direction: column; }
+.nap-id { background: #343a40; color: #fff; font-weight: bold; font-size: 13px; text-align: center; padding: 8px 18px; letter-spacing: 0.5px; }
+.nap-btn { border: none; border-radius: 0; padding: 9px 18px; font-size: 13px; cursor: pointer; width: 100%; text-align: center; transition: filter 0.15s; }
+.nap-btn:hover { filter: brightness(0.88); }
+.nap-btn-edit { background: #007bff; color: #fff; border-top: 1px solid rgba(0,0,0,0.08); }
+.nap-btn-danger { background: #dc3545; color: #fff; border-top: 1px solid rgba(0,0,0,0.1); }
+
+/* 幹道時空圖 overlay */
+#tsd-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 2000; align-items: flex-end; }
+#tsd-overlay.open { display: flex; }
+#tsd-panel { background: #fff; width: 100%; padding: 12px 16px 14px; box-shadow: 0 -4px 24px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px; }
+.tsd-header { display: flex; justify-content: space-between; align-items: center; }
+.tsd-header h3 { margin: 0; font-size: 15px; }
+.tsd-hint { font-size: 11px; color: #888; }
+#ts-canvas { width: 100%; height: 180px; display: block; background: #fafafa; border: 1px solid #ddd; }
+#btn-close-tsd { padding: 5px 14px; border: 1px solid #999; border-radius: 4px; background: #f8f9fa; cursor: pointer; font-size: 13px; white-space: nowrap; }
+#btn-close-tsd:hover { background: #e9ecef; }
+
+/* 路口即時狀態面板 */
+#node-status-panel { background: #e8f4fd; border: 1px solid #bee3f8; border-radius: 6px; padding: 10px 12px; margin-bottom: 16px; }
+#node-status-panel h3 { margin: 0 0 8px; font-size: 13px; color: #0c5460; border-bottom: 1px solid #bee3f8; padding-bottom: 5px; }
+.status-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; padding: 2px 0; gap: 8px; }
+.status-row span:first-child { color: #555; white-space: nowrap; flex-shrink: 0; }
+.status-row .status-val { text-align: right; }
+.status-divider { border-top: 1px solid #bee3f8; margin: 5px 0; }
+.status-highlight { background: #d1ecf1; border-radius: 3px; padding: 3px 6px; margin-top: 2px; }
+.status-movements { font-size: 11px; color: #444; padding: 3px 0; line-height: 1.5; }
