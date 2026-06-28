@@ -48,7 +48,7 @@
             </div>
 
             <div id="editor-panel" style="display: none;">
-                <h3>時制計畫編輯器</h3>
+                <h3>路口屬性編輯器</h3>
                 <div class="form-group">
                     <label>路口編號:</label>
                     <input type="text" id="input-node-id" style="font-weight:bold;">
@@ -58,16 +58,16 @@
                     <input type="text" id="input-node-name" placeholder="（選填）">
                 </div>
                 <div class="form-group">
+                    <label title="順時針偏轉角度，讓箭頭圖示對齊實際道路方向">路口方向角 (°):</label>
+                    <input type="number" id="input-bearing" value="0" title="順時針偏轉，0=東西向，45=東北-西南向">
+                </div>
+                <div class="form-group">
                     <label>週期 (自動計算):</label>
                     <strong id="display-cycle" style="color:#007bff;">— 秒</strong>
                 </div>
                 <div class="form-group">
                     <label>時差 (秒):</label>
                     <input type="number" id="input-offset" value="0" min="0">
-                </div>
-                <div class="form-group">
-                    <label title="順時針偏轉角度，讓箭頭圖示對齊實際道路方向">路口方向角 (°):</label>
-                    <input type="number" id="input-bearing" value="0" title="順時針偏轉，0=東西向，45=東北-西南向">
                 </div>
                 <div id="phases-container"></div>
                 <button id="btn-add-phase">＋ 新增時相</button>
