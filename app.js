@@ -155,7 +155,7 @@ function selectNode(node) {
     const latlng = marker ? marker.getLatLng() : [node.lat, node.lng];
     const actionBtns = simInterval
         ? ''
-        : `<button class="nap-btn nap-btn-edit" id="nap-edit">編輯時制</button>
+        : `<button class="nap-btn nap-btn-edit" id="nap-edit">編輯路口屬性</button>
            <button class="nap-btn nap-btn-danger" id="nap-delete">刪除路口</button>`;
     const popup = L.popup({ closeButton: false, className: 'node-popup', offset: [0, -22] })
         .setLatLng(latlng)
