@@ -13,6 +13,7 @@ let markers = {};
 let polylines = [];
 let lastIconState = {}; // { [nodeId]: stateKey } — 避免無謂的 setIcon DOM 替換
 let tsdPhaseSelection = {}; // { [nodeId]: number[] } — 時空圖各路口顯示時相（可多選）
+let tsdTimeOffset = 0;      // 時空圖時間偏移（秒）；0 = 跟隨模擬，負值 = 回顧過去（最多 -600）
 
 // 模擬與時間變數
 let simulationTime = 0;
@@ -31,6 +32,85 @@ document.getElementById('tsd-canvas-wrap').addEventListener('wheel', (e) => {
     e.preventDefault();
     tsdScrollbar.scrollTop += e.deltaY;
 }, { passive: false });
+
+// ── TSD 拖曳捲動時間軸（含慣性）─────────────────────────────────────────────
+let tsdDragStartX    = null;
+let tsdDragStartOffset = null;
+let tsdLastMoveX     = null;
+let tsdLastMoveTime  = null;
+let tsdVelocity      = 0;     // 秒/毫秒，正 = 往後，負 = 往前
+let tsdMomentumRAF   = null;
+const TSD_FRICTION   = 0.95;  // 每 16ms 保留的速度比例
+const TSD_STOP_THRESHOLD = 0.0003; // 秒/毫秒，低於此值停止慣性
+
+function tsdSecondsPerPixel() {
+    return 240 / (canvas.width - 72 - 20);
+}
+
+function applyTsdOffset(newOffset) {
+    const clamped = Math.min(0, Math.max(-600, newOffset));
+    tsdTimeOffset = clamped;
+    updateTimeSpaceDiagram();
+    return clamped === newOffset; // false = 碰到邊界
+}
+
+function startTsdMomentum() {
+    if (tsdMomentumRAF) cancelAnimationFrame(tsdMomentumRAF);
+    let lastTime = performance.now();
+    function step(now) {
+        const dt = Math.min(now - lastTime, 50);
+        lastTime = now;
+        tsdVelocity *= Math.pow(TSD_FRICTION, dt / 16);
+        if (Math.abs(tsdVelocity) < TSD_STOP_THRESHOLD) {
+            tsdMomentumRAF = null;
+            return;
+        }
+        const withinBounds = applyTsdOffset(tsdTimeOffset + tsdVelocity * dt);
+        if (!withinBounds) { tsdMomentumRAF = null; return; }
+        tsdMomentumRAF = requestAnimationFrame(step);
+    }
+    tsdMomentumRAF = requestAnimationFrame(step);
+}
+
+function tsdDragStart(clientX) {
+    if (tsdMomentumRAF) { cancelAnimationFrame(tsdMomentumRAF); tsdMomentumRAF = null; }
+    tsdDragStartX     = clientX;
+    tsdDragStartOffset = tsdTimeOffset;
+    tsdLastMoveX      = clientX;
+    tsdLastMoveTime   = performance.now();
+    tsdVelocity       = 0;
+}
+
+function tsdDragMove(clientX) {
+    if (tsdDragStartX === null) return;
+    const spp = tsdSecondsPerPixel();
+    applyTsdOffset(tsdDragStartOffset - (clientX - tsdDragStartX) * spp);
+
+    // 追蹤即時速度（EMA 平滑）
+    const now = performance.now();
+    const dt  = now - tsdLastMoveTime;
+    if (dt > 0) {
+        const instant = -(clientX - tsdLastMoveX) * spp / dt;
+        tsdVelocity = tsdVelocity * 0.5 + instant * 0.5;
+    }
+    tsdLastMoveX   = clientX;
+    tsdLastMoveTime = now;
+}
+
+function tsdDragEnd() {
+    if (tsdDragStartX === null) return;
+    tsdDragStartX = null;
+    canvas.style.cursor = 'grab';
+    if (Math.abs(tsdVelocity) > TSD_STOP_THRESHOLD * 5) startTsdMomentum();
+}
+
+canvas.style.cursor = 'grab';
+canvas.addEventListener('mousedown',  (e) => { tsdDragStart(e.clientX); canvas.style.cursor = 'grabbing'; });
+window.addEventListener('mousemove',  (e) => { tsdDragMove(e.clientX); });
+window.addEventListener('mouseup',    ()  => { tsdDragEnd(); });
+canvas.addEventListener('touchstart', (e) => { tsdDragStart(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchmove',  (e) => { tsdDragMove(e.touches[0].clientX);  e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchend',   ()  => { tsdDragEnd(); });
 
 // ─── 交通工程常數 ───────────────────────────────────────────────────────────
 
@@ -809,7 +889,8 @@ function updateTimeSpaceDiagram() {
     const drawW = canvas.width - padL - padR;
     const drawH = canvas.height - padT - padB;
     const timeWindow = 240;
-    const minTime = Math.max(0, simulationTime - timeWindow / 2);
+    const centerTime = simulationTime + tsdTimeOffset;
+    const minTime = centerTime - timeWindow / 2;
     const maxTime = minTime + timeWindow;
 
     // 虛擬高度：路口數多時擴展，確保最小間距 50px；頂底各留 margin
@@ -879,6 +960,19 @@ function updateTimeSpaceDiagram() {
     if (curX >= padL && curX <= padL + drawW) {
         ctx.strokeStyle = '#007bff'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(curX, padT - 5); ctx.lineTo(curX, padT + drawH + 5); ctx.stroke();
+    }
+
+    // 回顧模式提示
+    if (tsdTimeOffset < -1) {
+        const label = `◀ 回顧中（${Math.round(-tsdTimeOffset)}s 前）  左拖回到現在`;
+        ctx.font = 'bold 11px sans-serif';
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = 'rgba(220, 53, 69, 0.82)';
+        ctx.beginPath();
+        ctx.roundRect(padL + drawW - tw - 12, padT + 4, tw + 10, 18, 4);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.fillText(label, padL + drawW - tw - 7, padT + 16);
     }
 }
 
