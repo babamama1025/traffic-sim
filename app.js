@@ -12,16 +12,25 @@ let justClosedPopup = false;
 let markers = {};
 let polylines = [];
 let lastIconState = {}; // { [nodeId]: stateKey } — 避免無謂的 setIcon DOM 替換
+let tsdPhaseSelection = {}; // { [nodeId]: number[] } — 時空圖各路口顯示時相（可多選）
 
 // 模擬與時間變數
 let simulationTime = 0;
 let simInterval = null;
 let simSpeed = 1;
+let simStarted = false; // true after play pressed, false after reset
 const clockEl = document.getElementById('clock');
 
 // 時空圖 Canvas
 const canvas = document.getElementById('ts-canvas');
 const ctx = canvas.getContext('2d');
+const tsdScrollbar = document.getElementById('tsd-scrollbar');
+const tsdScrollInner = document.getElementById('tsd-scroll-inner');
+tsdScrollbar.addEventListener('scroll', () => updateTimeSpaceDiagram());
+document.getElementById('tsd-canvas-wrap').addEventListener('wheel', (e) => {
+    e.preventDefault();
+    tsdScrollbar.scrollTop += e.deltaY;
+}, { passive: false });
 
 // ─── 交通工程常數 ───────────────────────────────────────────────────────────
 
@@ -118,6 +127,7 @@ map.on('click', function(e) {
         const nodeData = { id, name: '', lat: e.latlng.lat, lng: e.latlng.lng, bearing: 0, plan: defaultPlan() };
         state.nodes.push(nodeData);
         drawNode(nodeData);
+        rebuildTsdControls();
         updateTimeSpaceDiagram();
     }
 });
@@ -238,6 +248,7 @@ function deleteNode(nodeId) {
     currentPopup = null;
     document.getElementById('editor-panel').style.display = 'none';
     renderLinks();
+    rebuildTsdControls();
     updateTimeSpaceDiagram();
 }
 
@@ -434,6 +445,7 @@ function applyPlan() {
     }
 
     updateSignals();
+    rebuildTsdControls();
     updateTimeSpaceDiagram();
 
     const btn = document.getElementById('btn-save-plan');
@@ -468,6 +480,27 @@ function getPhaseAtTime(plan, localTime) {
     return { sigState: 'allRed', movements: null }; // 週期剩餘未分配時間
 }
 
+// 回傳所選時相組（selectedPhases 為排序後的 index 陣列）的號誌顏色。
+// 所有被選時相期間（含中間的黃燈/全紅）均顯示綠，只有最後一個被選時相的黃燈/全紅才如實呈現。
+function getPhaseColorForDisplay(plan, localTime, selectedPhases) {
+    if (!selectedPhases || selectedPhases.length === 0) return 'allRed';
+    const lastSelected = selectedPhases[selectedPhases.length - 1];
+    let elapsed = 0;
+    for (let i = 0; i < plan.phases.length; i++) {
+        const ph = plan.phases[i];
+        const duration = ph.green + ph.yellow + ph.allRed;
+        if (localTime < elapsed + duration) {
+            if (!selectedPhases.includes(i)) return 'allRed';
+            if (localTime < elapsed + ph.green) return 'green';
+            if (i !== lastSelected) return 'green'; // 非最後選中時相：黃燈/全紅仍顯示綠
+            if (localTime < elapsed + ph.green + ph.yellow) return 'yellow';
+            return 'allRed';
+        }
+        elapsed += duration;
+    }
+    return 'allRed';
+}
+
 function getDetailedPhaseInfo(plan, localTime) {
     let elapsed = 0;
     for (let i = 0; i < plan.phases.length; i++) {
@@ -495,7 +528,7 @@ function getDetailedPhaseInfo(plan, localTime) {
 
 function updateNodeStatusPanel() {
     const panel = document.getElementById('node-status-panel');
-    if (!selectedNodeId) { panel.style.display = 'none'; return; }
+    if (!simStarted || !selectedNodeId) { panel.style.display = 'none'; return; }
     const node = state.nodes.find(n => n.id === selectedNodeId);
     if (!node) { panel.style.display = 'none'; return; }
 
@@ -532,20 +565,20 @@ function updateSignals() {
         const plan = node.plan;
         let localTime = (simulationTime - plan.offset) % plan.cycle;
         if (localTime < 0) localTime += plan.cycle;
-        const { sigState, movements } = getPhaseAtTime(plan, localTime);
+        const { sigState, movements, phaseIndex } = getDetailedPhaseInfo(plan, localTime);
         const isSelected = node.id === selectedNodeId;
 
         // 只有狀態實際改變時才替換 DOM icon，避免高速模擬下滑鼠事件被中斷
         const movKey = movements
             ? Object.entries(movements).filter(([, v]) => v).map(([k]) => k).join(',')
             : '';
-        const stateKey = `${sigState}|${movKey}|${isSelected}|${node.bearing || 0}`;
+        const stateKey = `${sigState}|${movKey}|${isSelected}|${node.bearing || 0}|${phaseIndex}`;
         if (lastIconState[node.id] !== stateKey) {
             lastIconState[node.id] = stateKey;
             const marker = markers[node.id];
             if (marker) marker.setIcon(L.divIcon({
                 className: 'intersection-icon',
-                html: buildSignalSVG(sigState, movements, node.bearing || 0, isSelected),
+                html: buildSignalSVG(sigState, movements, node.bearing || 0, isSelected, phaseIndex),
                 iconSize: [44, 44],
             }));
         }
@@ -553,12 +586,16 @@ function updateSignals() {
     updateNodeStatusPanel();
 }
 
-function buildSignalSVG(sigState, movements, bearing = 0, selected = false) {
+function buildSignalSVG(sigState, movements, bearing = 0, selected = false, phaseIndex = -1) {
     const selRing = selected
         ? `<circle cx="20" cy="20" r="18" fill="none" stroke="#007bff" stroke-width="2.5" stroke-dasharray="5 2"/>`
         : '';
+    const phaseTag = phaseIndex >= 0
+        ? `<rect x="26" y="1" width="13" height="13" rx="2.5" fill="#333" opacity="0.82"/>` +
+          `<text x="32.5" y="7.5" font-size="11" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="monospace">${phaseIndex + 1}</text>`
+        : '';
     if (sigState === 'allRed' || !movements) {
-        return `<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="#dc3545"/>${selRing}</svg>`;
+        return `<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="#dc3545"/>${selRing}${phaseTag}</svg>`;
     }
     const clr = sigState === 'yellow' ? '#ffc107' : '#28a745';
     const bg  = sigState === 'yellow' ? '#fffbe6' : 'white';
@@ -612,13 +649,22 @@ function buildSignalSVG(sigState, movements, bearing = 0, selected = false) {
         p += `<path d="M 14,5 L 14,17 Q 14,20 7,20 M 10,17 L 7,20 L 10,23" stroke="${clr}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
 
     const inner = bearing ? `<g transform="rotate(${bearing}, 20, 20)">${p}</g>` : p;
-    return `<svg width="40" height="40" viewBox="0 0 40 40" style="background:${bg}; border-radius:50%;">${inner}${selRing}</svg>`;
+    return `<svg width="40" height="40" viewBox="0 0 40 40" style="background:${bg}; border-radius:50%;">${inner}${selRing}${phaseTag}</svg>`;
 }
 
 // ─── 模擬引擎 ────────────────────────────────────────────────────────────────
 
 const btnPlay = document.getElementById('btn-play');
 const btnPause = document.getElementById('btn-pause');
+const tsdBtnPlay = document.getElementById('tsd-btn-play');
+const tsdBtnPause = document.getElementById('tsd-btn-pause');
+
+function syncSimButtons(playClass, pauseClass) {
+    btnPlay.className = playClass;
+    btnPause.className = pauseClass;
+    tsdBtnPlay.className = playClass;
+    tsdBtnPause.className = pauseClass;
+}
 const selectSpeed = document.getElementById('select-speed');
 
 selectSpeed.oninput = () => {
@@ -632,31 +678,42 @@ const tsdOverlay = document.getElementById('tsd-overlay');
 document.getElementById('btn-arterial').onclick = () => {
     tsdOverlay.classList.add('open');
     requestAnimationFrame(() => {
-        canvas.width = canvas.parentElement.clientWidth - 32;
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight || 300;
+        rebuildTsdControls();
         updateTimeSpaceDiagram();
     });
 };
 document.getElementById('btn-close-tsd').onclick = () => tsdOverlay.classList.remove('open');
 tsdOverlay.addEventListener('click', e => { if (e.target === tsdOverlay) tsdOverlay.classList.remove('open'); });
 
-btnPlay.onclick = () => {
+btnPlay.onclick = tsdBtnPlay.onclick = () => {
+    simStarted = true;
     startTimer();
-    btnPlay.className = 'btn-play-active';
-    btnPause.className = 'btn-inactive';
+    syncSimButtons('btn-play-active', 'btn-inactive');
+    document.getElementById('editor-panel').style.display = 'none';
 };
 
-btnPause.onclick = () => {
+btnPause.onclick = tsdBtnPause.onclick = () => {
     stopTimer();
-    btnPlay.className = 'btn-inactive';
-    btnPause.className = 'btn-pause-active';
+    syncSimButtons('btn-inactive', 'btn-pause-active');
+    if (editingNodeId) {
+        const node = state.nodes.find(n => n.id === editingNodeId);
+        if (node) openEditor(node);
+    }
 };
 
 document.getElementById('btn-reset').onclick = () => {
     stopTimer();
+    simStarted = false;
     simulationTime = 0;
     clockEl.innerText = 0;
-    btnPlay.className = 'btn-inactive';
-    btnPause.className = 'btn-inactive';
+    syncSimButtons('btn-inactive', 'btn-inactive');
+    document.getElementById('node-status-panel').style.display = 'none';
+    if (editingNodeId) {
+        const node = state.nodes.find(n => n.id === editingNodeId);
+        if (node) openEditor(node);
+    }
     updateSignals();
     updateTimeSpaceDiagram();
 };
@@ -678,6 +735,62 @@ function stopTimer() {
 
 // ─── 時空圖繪製（含黃燈色帶）────────────────────────────────────────────────
 
+function rebuildTsdControls() {
+    if (!tsdOverlay.classList.contains('open')) return;
+    const container = document.getElementById('tsd-controls');
+    const sortedNodes = [...state.nodes].sort((a, b) => a.lng - b.lng);
+    container.innerHTML = '';
+    sortedNodes.forEach(node => {
+        const numPhases = node.plan.phases.length;
+        // 初始化或清除超出範圍的索引
+        if (!(node.id in tsdPhaseSelection) || !Array.isArray(tsdPhaseSelection[node.id])) {
+            tsdPhaseSelection[node.id] = [0];
+        } else {
+            tsdPhaseSelection[node.id] = tsdPhaseSelection[node.id].filter(i => i < numPhases);
+            if (tsdPhaseSelection[node.id].length === 0) tsdPhaseSelection[node.id] = [0];
+        }
+
+        const row = document.createElement('div');
+        row.className = 'tsd-phase-sel';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = node.name || node.id;
+        row.appendChild(nameSpan);
+
+        for (let i = 0; i < numPhases; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'tsd-phase-toggle' + (tsdPhaseSelection[node.id].includes(i) ? ' active' : '');
+            btn.textContent = i + 1;
+            btn.title = `時相 ${i + 1}`;
+            btn.addEventListener('click', () => {
+                const sel = tsdPhaseSelection[node.id];
+                const pos = sel.indexOf(i);
+                if (pos >= 0) {
+                    sel.splice(pos, 1);
+                    btn.classList.remove('active');
+                } else {
+                    sel.push(i);
+                    sel.sort((a, b) => a - b);
+                    btn.classList.add('active');
+                }
+                updateTimeSpaceDiagram();
+            });
+            row.appendChild(btn);
+        }
+
+        container.appendChild(row);
+    });
+}
+
+function haversineM(n1, n2) {
+    const R = 6371000;
+    const φ1 = n1.lat * Math.PI / 180, φ2 = n2.lat * Math.PI / 180;
+    const Δφ = (n2.lat - n1.lat) * Math.PI / 180;
+    const Δλ = (n2.lng - n1.lng) * Math.PI / 180;
+    const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function updateTimeSpaceDiagram() {
     if (!tsdOverlay.classList.contains('open')) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -685,14 +798,29 @@ function updateTimeSpaceDiagram() {
 
     const sortedNodes = [...state.nodes].sort((a, b) => a.lng - b.lng);
     const numNodes = sortedNodes.length;
-    const padL = 60, padR = 20, padT = 20, padB = 30;
+
+    // 累積地理距離（公尺），用於縱軸比例定位
+    const cumDist = [0];
+    for (let i = 1; i < numNodes; i++)
+        cumDist.push(cumDist[i - 1] + haversineM(sortedNodes[i - 1], sortedNodes[i]));
+    const totalDist = cumDist[numNodes - 1] || 1;
+
+    const padL = 72, padR = 20, padT = 20, padB = 30;
     const drawW = canvas.width - padL - padR;
     const drawH = canvas.height - padT - padB;
     const timeWindow = 240;
     const minTime = Math.max(0, simulationTime - timeWindow / 2);
     const maxTime = minTime + timeWindow;
 
-    // 背景網格
+    // 虛擬高度：路口數多時擴展，確保最小間距 50px；頂底各留 margin
+    const MIN_SPACING = 50;
+    const nodeTopMargin = 10, nodeBottomMargin = 30;
+    const virtualDrawH = Math.max(drawH,
+        numNodes <= 1 ? drawH : (numNodes - 1) * MIN_SPACING + nodeTopMargin + nodeBottomMargin);
+    tsdScrollInner.style.height = (virtualDrawH + padT + padB) + 'px';
+    const scrollY = Math.min(tsdScrollbar.scrollTop, Math.max(0, virtualDrawH - drawH));
+
+    // 背景網格（固定於可視區，不隨 scrollY 移動）
     ctx.strokeStyle = '#eee'; ctx.lineWidth = 1;
     for (let t = Math.ceil(minTime / 30) * 30; t <= maxTime; t += 30) {
         const x = padL + ((t - minTime) / timeWindow) * drawW;
@@ -701,32 +829,52 @@ function updateTimeSpaceDiagram() {
         ctx.fillText(t + 's', x - 10, padT + drawH + 15);
     }
 
+    // 將各路口色帶與標籤裁剪在可視範圍內
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, padT, canvas.width, drawH);
+    ctx.clip();
+
     // 各路口號誌色帶
     sortedNodes.forEach((node, index) => {
-        let y = padT + (index / Math.max(1, numNodes - 1)) * drawH;
-        if (numNodes === 1) y = padT + drawH / 2;
+        const ratio = numNodes === 1 ? 0.5 : cumDist[index] / totalDist;
+        const y = padT + nodeTopMargin + ratio * (virtualDrawH - nodeTopMargin - nodeBottomMargin) - scrollY;
 
+        // 可視範圍外跳過（留 15px 緩衝避免標籤截斷）
+        if (y < padT - 15 || y > padT + drawH + 15) return;
+
+        // 路口名稱
         ctx.fillStyle = '#333'; ctx.font = 'bold 11px sans-serif';
-        ctx.fillText(node.name || node.id, 10, y + 4);
+        ctx.fillText(node.name || node.id, 4, y + 13);
+        // 累積距離標籤
+        ctx.fillStyle = '#888'; ctx.font = '9px sans-serif';
+        const distLabel = cumDist[index] < 1000
+            ? Math.round(cumDist[index]) + ' m'
+            : (cumDist[index] / 1000).toFixed(2) + ' km';
+        ctx.fillText(distLabel, 4, y + 24);
 
         const plan = node.plan;
+        const selectedPhases = (Array.isArray(tsdPhaseSelection[node.id]) ? tsdPhaseSelection[node.id] : [0])
+            .filter(i => i < plan.phases.length);
         for (let t = Math.floor(minTime); t <= maxTime; t++) {
             let localTime = (t - plan.offset) % plan.cycle;
             if (localTime < 0) localTime += plan.cycle;
-            const { sigState } = getPhaseAtTime(plan, localTime);
+            const sigState = getPhaseColorForDisplay(plan, localTime, selectedPhases);
             ctx.fillStyle =
                 sigState === 'green'  ? 'rgba(40, 167, 69, 0.75)' :
                 sigState === 'yellow' ? 'rgba(255, 193, 7, 0.85)' :
                                         'rgba(220, 53, 69, 0.65)';
             const x = padL + ((t - minTime) / timeWindow) * drawW;
-            ctx.fillRect(x, y - 5, 1, 10);
+            ctx.fillRect(x, y + 2, 1, 10);
         }
 
         ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + drawW, y); ctx.stroke();
     });
 
-    // 當前時間線
+    ctx.restore();
+
+    // 當前時間線（畫在 clip 外，跨越完整繪圖高度）
     const curX = padL + ((simulationTime - minTime) / timeWindow) * drawW;
     if (curX >= padL && curX <= padL + drawW) {
         ctx.strokeStyle = '#007bff'; ctx.lineWidth = 2;
@@ -737,10 +885,273 @@ function updateTimeSpaceDiagram() {
 // 畫布大小自適應（僅在 overlay 開啟時執行）
 window.addEventListener('resize', () => {
     if (tsdOverlay.classList.contains('open')) {
-        canvas.width = canvas.parentElement.clientWidth - 32;
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight || 300;
         updateTimeSpaceDiagram();
     }
 });
+
+// ─── 路口總覽 ────────────────────────────────────────────────────────────────
+
+const allNodesOverlay = document.getElementById('all-nodes-overlay');
+
+document.getElementById('btn-all-nodes').onclick = () => {
+    document.getElementById('editor-panel').style.display = 'none';
+    allNodesOverlay.classList.add('open');
+    buildAllNodesPanel();
+};
+document.getElementById('btn-close-all-nodes').onclick = () => allNodesOverlay.classList.remove('open');
+allNodesOverlay.addEventListener('click', e => { if (e.target === allNodesOverlay) allNodesOverlay.classList.remove('open'); });
+document.getElementById('all-nodes-panel').addEventListener('wheel', (e) => {
+    e.preventDefault();
+    document.getElementById('all-nodes-container').scrollTop += e.deltaY;
+}, { passive: false });
+
+document.getElementById('btn-apply-all-nodes').onclick = () => {
+    updateSignals();
+    rebuildTsdControls();
+    updateTimeSpaceDiagram();
+    const btn = document.getElementById('btn-apply-all-nodes');
+    btn.textContent = '✅ 已套用';
+    setTimeout(() => { btn.textContent = '套用全部'; }, 1500);
+};
+
+function buildAllNodesPanel() {
+    const container = document.getElementById('all-nodes-container');
+    container.innerHTML = '';
+    if (state.nodes.length === 0) {
+        container.innerHTML = '<p class="anc-empty">尚未建立任何路口，請先在地圖上新增路口。</p>';
+        return;
+    }
+    state.nodes.forEach(node => container.appendChild(buildNodeCard(node)));
+}
+
+function buildNodeCard(node) {
+    const card = document.createElement('div');
+    card.className = 'anc-card';
+    card.dataset.nodeId = node.id;
+
+    // 卡片標題列
+    const header = document.createElement('div');
+    header.className = 'anc-card-header';
+    header.textContent = node.name ? `${node.id}　${node.name}` : node.id;
+    card.appendChild(header);
+
+    // 基本欄位
+    const body = document.createElement('div');
+    body.className = 'anc-body';
+
+    const fieldsDiv = document.createElement('div');
+    fieldsDiv.className = 'anc-fields';
+    fieldsDiv.innerHTML = `
+        <label class="anc-field">編號
+            <input type="text" class="anc-input anc-id" value="${node.id}">
+        </label>
+        <label class="anc-field">名稱
+            <input type="text" class="anc-input anc-name" value="${node.name || ''}">
+        </label>
+        <label class="anc-field">時差
+            <input type="number" class="anc-input anc-offset" value="${node.plan.offset}" min="0"> 秒
+        </label>
+        <label class="anc-field">方位角
+            <input type="number" class="anc-input anc-bearing" value="${node.bearing || 0}" min="0" max="359"> °
+        </label>
+        <span class="anc-cycle-display">週期：<strong class="anc-cycle">${node.plan.cycle}</strong> 秒</span>
+    `;
+    body.appendChild(fieldsDiv);
+
+    const syncBasic = () => {
+        const idInput = fieldsDiv.querySelector('.anc-id');
+        const newId = idInput.value.trim();
+        if (newId && newId !== node.id) {
+            if (state.nodes.some(n => n.id === newId)) {
+                idInput.value = node.id;
+            } else {
+                markers[newId] = markers[node.id]; delete markers[node.id];
+                delete lastIconState[node.id];
+                state.links.forEach(l => {
+                    if (l.from === node.id) l.from = newId;
+                    if (l.to === node.id) l.to = newId;
+                });
+                if (editingNodeId === node.id) editingNodeId = newId;
+                if (selectedNodeId === node.id) selectedNodeId = newId;
+                if (tsdPhaseSelection[node.id] !== undefined) {
+                    tsdPhaseSelection[newId] = tsdPhaseSelection[node.id];
+                    delete tsdPhaseSelection[node.id];
+                }
+                node.id = newId;
+                card.dataset.nodeId = newId;
+            }
+        }
+        node.name = fieldsDiv.querySelector('.anc-name').value.trim();
+        header.textContent = node.name ? `${node.id}　${node.name}` : node.id;
+        node.plan.offset = parseInt(fieldsDiv.querySelector('.anc-offset').value) || 0;
+        const rawBearing = parseInt(fieldsDiv.querySelector('.anc-bearing').value);
+        node.bearing = isNaN(rawBearing) ? 0 : ((rawBearing % 360) + 360) % 360;
+        updateSignals();
+    };
+
+    fieldsDiv.querySelector('.anc-id').addEventListener('change', syncBasic);
+    fieldsDiv.querySelector('.anc-name').addEventListener('input', syncBasic);
+    fieldsDiv.querySelector('.anc-offset').addEventListener('input', syncBasic);
+    fieldsDiv.querySelector('.anc-bearing').addEventListener('input', syncBasic);
+
+    // 時相區
+    const phasesDiv = document.createElement('div');
+    phasesDiv.className = 'anc-phases';
+    body.appendChild(phasesDiv);
+
+    const addPhaseBtn = document.createElement('button');
+    addPhaseBtn.className = 'anc-add-phase';
+    addPhaseBtn.textContent = '＋ 新增時相';
+    addPhaseBtn.onclick = () => {
+        node.plan.phases.push(defaultPhase(20, 3, 1));
+        refreshCardPhases(card, node);
+        rebuildTsdControls();
+    };
+    body.appendChild(addPhaseBtn);
+
+    card.appendChild(body);
+    refreshCardPhases(card, node);
+    return card;
+}
+
+function refreshCardPhases(card, node) {
+    const phasesDiv = card.querySelector('.anc-phases');
+    phasesDiv.innerHTML = '';
+    node.plan.phases.forEach((phase, idx) => {
+        phasesDiv.appendChild(buildCardPhaseBlock(phase, idx, node, card));
+    });
+    updateCardCycle(card, node);
+}
+
+function buildCardPhaseBlock(phase, idx, node, card) {
+    const div = document.createElement('div');
+    div.className = 'anc-phase-block';
+
+    const canUp   = idx > 0;
+    const canDown  = idx < node.plan.phases.length - 1;
+    const canDel   = node.plan.phases.length > 1;
+
+    // 時相標題列
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'anc-phase-header';
+    headerDiv.innerHTML = `
+        <span class="anc-phase-title">時相 ${idx + 1}</span>
+        <div class="anc-phase-timing">
+            <label>綠 <input type="number" class="anc-ph-input" data-field="green"  value="${phase.green}"  min="5"  max="240"> 秒</label>
+            <label>黃 <input type="number" class="anc-ph-input" data-field="yellow" value="${phase.yellow}" min="2"  max="6"> 秒</label>
+            <label>全紅 <input type="number" class="anc-ph-input" data-field="allRed" value="${phase.allRed}" min="0" max="5"> 秒</label>
+            <span class="anc-ph-total">= <strong class="anc-ph-sum">${phase.green + phase.yellow + phase.allRed}</strong> 秒</span>
+        </div>
+        <div class="anc-phase-btns">
+            ${canUp   ? '<button class="anc-ph-btn" data-dir="-1">↑</button>' : ''}
+            ${canDown ? '<button class="anc-ph-btn" data-dir="1">↓</button>'  : ''}
+            ${canDel  ? '<button class="anc-ph-btn anc-ph-del">✕</button>'   : ''}
+        </div>
+    `;
+    div.appendChild(headerDiv);
+
+    // 時相時間輸入
+    headerDiv.querySelectorAll('.anc-ph-input').forEach(input => {
+        input.addEventListener('input', () => {
+            const g  = parseInt(headerDiv.querySelector('[data-field="green"]').value)  || 0;
+            const y  = parseInt(headerDiv.querySelector('[data-field="yellow"]').value) || 0;
+            const ar = parseInt(headerDiv.querySelector('[data-field="allRed"]').value) || 0;
+            phase.green = g; phase.yellow = y; phase.allRed = ar;
+            headerDiv.querySelector('.anc-ph-sum').textContent = g + y + ar;
+            updateCardCycle(card, node);
+            updateSignals();
+            updateTimeSpaceDiagram();
+        });
+    });
+
+    // 上移 / 下移
+    headerDiv.querySelectorAll('.anc-ph-btn[data-dir]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const toIdx = idx + parseInt(btn.dataset.dir);
+            if (toIdx < 0 || toIdx >= node.plan.phases.length) return;
+            [node.plan.phases[idx], node.plan.phases[toIdx]] = [node.plan.phases[toIdx], node.plan.phases[idx]];
+            refreshCardPhases(card, node);
+        });
+    });
+
+    // 刪除時相
+    const delEl = headerDiv.querySelector('.anc-ph-del');
+    if (delEl) {
+        delEl.addEventListener('click', () => {
+            node.plan.phases.splice(idx, 1);
+            refreshCardPhases(card, node);
+            rebuildTsdControls();
+            updateSignals();
+            updateTimeSpaceDiagram();
+        });
+    }
+
+    // 動線
+    const movDiv = document.createElement('div');
+    movDiv.className = 'anc-movements';
+    const approaches = [
+        { key: 'eb', label: '東→' },
+        { key: 'wb', label: '西←' },
+        { key: 'nb', label: '北↑' },
+        { key: 'sb', label: '南↓' },
+    ];
+    approaches.forEach(ap => {
+        const group = document.createElement('div');
+        group.className = 'anc-mov-group';
+        const apSpan = document.createElement('span');
+        apSpan.className = 'anc-mov-approach';
+        apSpan.textContent = ap.label;
+        group.appendChild(apSpan);
+        [['Thru', '直'], ['Left', '左'], ['Right', '右']].forEach(([turn, label]) => {
+            const key = ap.key + turn;
+            const lbl = document.createElement('label');
+            lbl.className = 'anc-mov-label';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = phase.movements[key];
+            cb.addEventListener('change', () => {
+                phase.movements[key] = cb.checked;
+                validateCardConflicts(div, phase);
+                updateSignals();
+            });
+            lbl.appendChild(cb);
+            lbl.appendChild(document.createTextNode(label));
+            group.appendChild(lbl);
+        });
+        movDiv.appendChild(group);
+    });
+    div.appendChild(movDiv);
+
+    // 衝突警告
+    const warnDiv = document.createElement('div');
+    warnDiv.className = 'anc-conflict-warn';
+    warnDiv.style.display = 'none';
+    div.appendChild(warnDiv);
+    validateCardConflicts(div, phase);
+
+    return div;
+}
+
+function updateCardCycle(card, node) {
+    node.plan.cycle = node.plan.phases.reduce((s, p) => s + p.green + p.yellow + p.allRed, 0);
+    const el = card.querySelector('.anc-cycle');
+    if (el) el.textContent = node.plan.cycle;
+}
+
+function validateCardConflicts(phaseDiv, phase) {
+    const conflicts = CONFLICT_PAIRS.filter(([a, b]) => phase.movements[a] && phase.movements[b]);
+    const warnEl = phaseDiv.querySelector('.anc-conflict-warn');
+    if (!warnEl) return;
+    if (conflicts.length > 0) {
+        const msgs = conflicts.map(([a, b]) => `${MOVEMENT_LABELS[a]} ✕ ${MOVEMENT_LABELS[b]}`).join('<br>');
+        warnEl.style.display = 'block';
+        warnEl.innerHTML = `<strong>⚠️ 衝突動線：</strong><br>${msgs}`;
+    } else {
+        warnEl.style.display = 'none';
+    }
+}
 
 // ─── 專案儲存 / 讀取 ─────────────────────────────────────────────────────────
 
@@ -802,7 +1213,10 @@ document.getElementById('file-load').addEventListener('change', function(e) {
         });
         renderLinks();
         updateSignals();
+        tsdPhaseSelection = {};
+        rebuildTsdControls();
         updateTimeSpaceDiagram();
+        if (allNodesOverlay.classList.contains('open')) buildAllNodesPanel();
     };
     reader.readAsText(file);
 });

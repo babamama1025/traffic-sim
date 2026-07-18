@@ -36,6 +36,7 @@
             </div>
 
             <div class="control-group">
+                <button id="btn-all-nodes">📋 路口總覽</button>
                 <button id="btn-arterial">📈 幹道分析</button>
                 <button id="btn-save">💾 儲存專案</button>
                 <input type="file" id="file-load" accept=".json" style="display: none;">
@@ -77,15 +78,38 @@
         </div>
     </div>
 
+    <!-- 路口總覽 overlay -->
+    <div id="all-nodes-overlay">
+        <div id="all-nodes-panel">
+            <div class="anp-header">
+                <h3>📋 路口總覽</h3>
+                <div class="anp-header-btns">
+                    <button id="btn-apply-all-nodes">套用全部</button>
+                    <button id="btn-close-all-nodes">✕ 關閉</button>
+                </div>
+            </div>
+            <div id="all-nodes-container"></div>
+        </div>
+    </div>
+
     <!-- 幹道時空圖分析 overlay -->
     <div id="tsd-overlay">
         <div id="tsd-panel">
             <div class="tsd-header">
                 <h3>📈 幹道時空圖分析 (Time-Space Diagram)</h3>
-                <button id="btn-close-tsd">✕ 關閉</button>
+                <div class="tsd-header-actions">
+                    <button id="tsd-btn-play" class="btn-inactive">▶️ 開始模擬</button>
+                    <button id="tsd-btn-pause" class="btn-inactive">⏸️ 暫停</button>
+                    <button id="btn-close-tsd">✕ 關閉</button>
+                </div>
             </div>
-            <span class="tsd-hint">路口依經度由西向東排列，綠/黃/紅帶對應各路口號誌狀態</span>
-            <canvas id="ts-canvas"></canvas>
+            <span class="tsd-hint">路口依實際地理距離等比例排列（由西向東），縱軸間距反映真實距離，綠/黃/紅帶對應各路口號誌狀態</span>
+            <div class="tsd-controls-header">點選數字以選擇納入綠寬的時相（可複選）</div>
+            <div id="tsd-controls"></div>
+            <div id="tsd-canvas-wrap">
+                <canvas id="ts-canvas"></canvas>
+                <div id="tsd-scrollbar"><div id="tsd-scroll-inner"></div></div>
+            </div>
         </div>
     </div>
 

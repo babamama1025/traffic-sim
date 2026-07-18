@@ -66,14 +66,73 @@ button.active { background: #007bff; color: white; border-color: #0056b3; }
 .nap-btn-edit { background: #007bff; color: #fff; border-top: 1px solid rgba(0,0,0,0.08); }
 .nap-btn-danger { background: #dc3545; color: #fff; border-top: 1px solid rgba(0,0,0,0.1); }
 
+/* ── 路口總覽 overlay ─────────────────────────────────────────────────── */
+#all-nodes-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
+#all-nodes-overlay.open { display: flex; }
+#all-nodes-panel { background: #fff; width: 92%; max-width: 1100px; height: 88vh; border-radius: 8px; box-shadow: 0 8px 40px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; }
+.anp-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-bottom: 1px solid #dee2e6; flex-shrink: 0; }
+.anp-header h3 { margin: 0; font-size: 15px; }
+.anp-header-btns { display: flex; gap: 8px; }
+#btn-apply-all-nodes { background: #007bff; color: #fff; border-color: #0056b3; font-weight: bold; padding: 5px 14px; }
+#btn-close-all-nodes { padding: 5px 14px; border: 1px solid #999; border-radius: 4px; background: #f8f9fa; cursor: pointer; font-size: 13px; }
+#btn-close-all-nodes:hover { background: #e9ecef; }
+#all-nodes-container { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; }
+.anc-empty { color: #888; text-align: center; padding: 48px; font-size: 14px; }
+
+/* 路口卡片 */
+.anc-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.anc-card-header { background: #343a40; color: #fff; font-weight: bold; font-size: 13px; padding: 7px 14px; letter-spacing: 0.4px; }
+.anc-body { padding: 10px 14px 12px; }
+.anc-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-bottom: 10px; }
+.anc-field { display: flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
+.anc-input { padding: 3px 6px; border: 1px solid #ced4da; border-radius: 3px; font-size: 12px; background: #fff; }
+.anc-input.anc-id { width: 70px; font-weight: bold; }
+.anc-input.anc-name { width: 110px; }
+.anc-input.anc-offset, .anc-input.anc-bearing { width: 52px; }
+.anc-cycle-display { font-size: 12px; color: #555; padding: 3px 8px; background: #e9ecef; border-radius: 3px; white-space: nowrap; }
+
+/* 時相區塊 */
+.anc-phase-block { background: #edf2ff; border: 1px solid #c5d4f0; border-radius: 4px; padding: 8px 10px; margin-top: 8px; }
+.anc-phase-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.anc-phase-title { font-weight: bold; font-size: 12px; color: #2c4fa3; min-width: 38px; }
+.anc-phase-timing { display: flex; align-items: center; gap: 6px; font-size: 12px; flex-wrap: wrap; }
+.anc-ph-input { width: 42px; padding: 2px 4px; border: 1px solid #ced4da; border-radius: 3px; font-size: 12px; }
+.anc-ph-total { color: #555; font-size: 12px; white-space: nowrap; }
+.anc-phase-btns { display: flex; gap: 3px; margin-left: auto; }
+.anc-ph-btn { padding: 1px 7px; font-size: 12px; border: 1px solid #adb5bd; border-radius: 3px; background: #fff; cursor: pointer; color: #444; }
+.anc-ph-btn:hover { background: #e9ecef; }
+.anc-ph-btn.anc-ph-del { border-color: #dc3545; color: #dc3545; }
+.anc-ph-btn.anc-ph-del:hover { background: #dc3545; color: #fff; }
+
+/* 動線 */
+.anc-movements { display: flex; flex-wrap: wrap; gap: 4px 20px; padding: 2px 0 4px; }
+.anc-mov-group { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+.anc-mov-approach { font-weight: bold; color: #495057; min-width: 22px; }
+.anc-mov-label { display: flex; align-items: center; gap: 2px; cursor: pointer; white-space: nowrap; }
+.anc-mov-label input { margin: 0; cursor: pointer; }
+.anc-conflict-warn { background: #fff0f0; border: 1px solid #f5c6cb; border-radius: 3px; padding: 4px 8px; margin-top: 5px; font-size: 11px; }
+.anc-add-phase { margin-top: 10px; font-size: 12px; padding: 4px 12px; background: #6c757d; color: #fff; border-color: #545b62; }
+.anc-add-phase:hover { background: #545b62; }
+
 /* 幹道時空圖 overlay */
 #tsd-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 2000; align-items: flex-end; }
 #tsd-overlay.open { display: flex; }
 #tsd-panel { background: #fff; width: 100%; padding: 12px 16px 14px; box-shadow: 0 -4px 24px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 6px; }
 .tsd-header { display: flex; justify-content: space-between; align-items: center; }
+.tsd-header-actions { display: flex; gap: 6px; align-items: center; }
 .tsd-header h3 { margin: 0; font-size: 15px; }
 .tsd-hint { font-size: 11px; color: #888; }
-#ts-canvas { width: 100%; height: 180px; display: block; background: #fafafa; border: 1px solid #ddd; }
+#tsd-controls { display: flex; flex-wrap: wrap; gap: 4px 14px; min-height: 22px; }
+.tsd-controls-header { font-size: 11px; color: #888; margin: 2px 0 4px; }
+.tsd-phase-sel { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #444; }
+.tsd-phase-sel span { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tsd-phase-toggle { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; font-size: 11px; font-weight: bold; border: 1.5px solid #bbb; border-radius: 4px; background: #f0f0f0; color: #888; cursor: pointer; user-select: none; transition: background 0.12s, color 0.12s, border-color 0.12s; padding: 0; }
+.tsd-phase-toggle.active { background: #28a745; border-color: #1e7e34; color: #fff; }
+.tsd-phase-toggle:hover:not(.active) { background: #e0e0e0; color: #444; }
+#tsd-canvas-wrap { display: flex; align-items: stretch; height: 300px; }
+#ts-canvas { flex: 1; min-width: 0; display: block; background: #fafafa; border: 1px solid #ddd; }
+#tsd-scrollbar { width: 16px; flex-shrink: 0; overflow-y: scroll; overflow-x: hidden; background: #f0f0f0; border: 1px solid #ddd; border-left: none; box-sizing: border-box; }
+#tsd-scroll-inner { width: 1px; }
 #btn-close-tsd { padding: 5px 14px; border: 1px solid #999; border-radius: 4px; background: #f8f9fa; cursor: pointer; font-size: 13px; white-space: nowrap; }
 #btn-close-tsd:hover { background: #e9ecef; }
 
