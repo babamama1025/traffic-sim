@@ -88,7 +88,7 @@ button.active { background: #007bff; color: white; border-color: #0056b3; }
 .anc-input { padding: 3px 6px; border: 1px solid #ced4da; border-radius: 3px; font-size: 12px; background: #fff; }
 .anc-input.anc-id { width: 70px; font-weight: bold; }
 .anc-input.anc-name { width: 110px; }
-.anc-input.anc-offset, .anc-input.anc-bearing { width: 52px; }
+.anc-input.anc-offset { width: 52px; }
 .anc-cycle-display { font-size: 12px; color: #555; padding: 3px 8px; background: #e9ecef; border-radius: 3px; white-space: nowrap; }
 
 /* 時相區塊 */
@@ -146,6 +146,29 @@ button.active { background: #007bff; color: white; border-color: #0056b3; }
 #tsd-scroll-inner { width: 1px; }
 #btn-close-tsd { padding: 5px 14px; border: 1px solid #999; border-radius: 4px; background: #f8f9fa; cursor: pointer; font-size: 13px; white-space: nowrap; }
 #btn-close-tsd:hover { background: #e9ecef; }
+
+/* 進向臂編輯器（側邊欄編輯器） */
+#arms-section { margin-bottom: 10px; }
+.arms-section-label { font-size: 12px; color: #555; margin-bottom: 4px; }
+.arm-row { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+.arm-num { font-size: 11px; color: #888; min-width: 22px; }
+.arm-bearing { width: 52px; padding: 2px 4px; font-size: 12px; border: 1px solid #ced4da; border-radius: 3px; }
+.arm-label { width: 52px; padding: 2px 4px; font-size: 12px; border: 1px solid #ced4da; border-radius: 3px; }
+.btn-del-arm { background: #fff; border: 1px solid #dc3545; color: #dc3545; padding: 1px 6px; font-size: 11px; border-radius: 3px; cursor: pointer; }
+.btn-del-arm:hover { background: #dc3545; color: #fff; }
+#btn-add-arm { font-size: 12px; padding: 3px 10px; background: #6c757d; color: #fff; border-color: #545b62; margin-top: 2px; }
+.mov-arm-label { text-align: left; padding-left: 6px; font-weight: bold; background: #eef2fb; }
+
+/* 路口總覽中的臂管理 */
+.anc-arms-section { margin: 6px 0 4px; }
+.anc-arms-list { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 4px; }
+.anc-arm-row { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.anc-arm-num { color: #888; min-width: 20px; }
+.anc-arm-bearing { width: 46px; padding: 2px 4px; border: 1px solid #ced4da; border-radius: 3px; font-size: 11px; }
+.anc-arm-label { width: 46px; padding: 2px 4px; border: 1px solid #ced4da; border-radius: 3px; font-size: 11px; }
+.anc-arm-del { background: #fff; border: 1px solid #dc3545; color: #dc3545; padding: 1px 5px; font-size: 10px; border-radius: 3px; cursor: pointer; }
+.anc-arm-del:hover { background: #dc3545; color: #fff; }
+.anc-add-arm { font-size: 11px; padding: 2px 9px; background: #6c757d; color: #fff; border-color: #545b62; }
 
 /* 路口即時狀態面板 */
 #node-status-panel { background: #e8f4fd; border: 1px solid #bee3f8; border-radius: 6px; padding: 10px 12px; margin-bottom: 16px; }

@@ -116,75 +116,132 @@ canvas.addEventListener('touchstart', (e) => { tsdDragStart(e.touches[0].clientX
 canvas.addEventListener('touchmove',  (e) => { tsdDragMove(e.touches[0].clientX);  e.preventDefault(); }, { passive: false });
 canvas.addEventListener('touchend',   ()  => { tsdDragEnd(); });
 
-// ─── 交通工程常數 ───────────────────────────────────────────────────────────
+// ─── 幾何工具與衝突偵測 ─────────────────────────────────────────────────────
 
-// 衝突對：同一時相內不可同時放行的動線組合
-// 右轉為讓行動線，不列入燈號衝突矩陣
-const CONFLICT_PAIRS = [
-    // 直行 vs 直行（正交衝突）
-    ['ebThru', 'nbThru'], ['ebThru', 'sbThru'],
-    ['wbThru', 'nbThru'], ['wbThru', 'sbThru'],
-    // 直行 vs 對向左轉（切穿對向車流）
-    ['ebThru', 'wbLeft'], ['wbThru', 'ebLeft'],
-    ['nbThru', 'sbLeft'], ['sbThru', 'nbLeft'],
-    // 直行 vs 正交左轉（切穿正交車流）
-    ['ebThru', 'nbLeft'], ['ebThru', 'sbLeft'],
-    ['wbThru', 'nbLeft'], ['wbThru', 'sbLeft'],
-    ['nbThru', 'ebLeft'], ['nbThru', 'wbLeft'],
-    ['sbThru', 'ebLeft'], ['sbThru', 'wbLeft'],
-    // 左轉 vs 左轉（非對向，路徑交叉）
-    ['ebLeft', 'nbLeft'], ['ebLeft', 'sbLeft'],
-    ['wbLeft', 'nbLeft'], ['wbLeft', 'sbLeft'],
-];
-
-const MOVEMENT_LABELS = {
-    ebThru: '東向直行', ebLeft: '東向左轉', ebRight: '東向右轉',
-    wbThru: '西向直行', wbLeft: '西向左轉', wbRight: '西向右轉',
-    nbThru: '北向直行', nbLeft: '北向左轉', nbRight: '北向右轉',
-    sbThru: '南向直行', sbLeft: '南向左轉', sbRight: '南向右轉',
-};
-
-// ─── 資料模型工廠 ────────────────────────────────────────────────────────────
-
-function defaultMovements() {
+// 回傳臂在 40×40 SVG 座標系（圓心 20,20）中的端點與方向向量
+// 方位角 bearing：順時針自北，0=北, 90=東, 180=南, 270=西
+function armEndpoints(bearing, re = 16) {
+    const rad = bearing * Math.PI / 180;
+    const s = Math.sin(rad), c = Math.cos(rad);
     return {
-        ebThru: false, ebLeft: false, ebRight: false,
-        wbThru: false, wbLeft: false, wbRight: false,
-        nbThru: false, nbLeft: false, nbRight: false,
-        sbThru: false, sbLeft: false, sbRight: false,
+        entry:     { x: 20 - re * s, y: 20 + re * c },  // 進入端（來車方向）
+        thruExit:  { x: 20 + re * s, y: 20 - re * c },  // 直行出口
+        leftExit:  { x: 20 - re * c, y: 20 - re * s },  // 左轉出口
+        rightExit: { x: 20 + re * c, y: 20 + re * s },  // 右轉出口
+        thruDir:   { x: s,  y: -c },   // 直行方向向量
+        leftDir:   { x: -c, y: -s },   // 左轉方向向量
+        rightDir:  { x: c,  y: s  },   // 右轉方向向量
     };
 }
 
-function defaultPhase(green = 45, yellow = 3, allRed = 1) {
-    return { green, yellow, allRed, movements: defaultMovements() };
+function f(n) { return n.toFixed(1); }
+
+// SVG 箭頭頂端 V 形，回傳可直接接在 path d 後的片段
+function svgArrow(tx, ty, dx, dy, ws = 4) {
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1e-6) return '';
+    dx /= len; dy /= len;
+    return `M ${f(tx - dx * ws - dy * ws * 0.6)},${f(ty - dy * ws + dx * ws * 0.6)} L ${f(tx)},${f(ty)} L ${f(tx - dx * ws + dy * ws * 0.6)},${f(ty - dy * ws - dx * ws * 0.6)}`;
 }
 
-function defaultPlan() {
-    const p1 = defaultPhase(45, 3, 1);
-    p1.movements.ebThru = true; p1.movements.wbThru = true;
-    const p2 = defaultPhase(45, 3, 1);
-    p2.movements.nbThru = true; p2.movements.sbThru = true;
+// 線段相交判斷（兩端保留 5% 不計，避免共端點誤報）
+function segmentsIntersect(p1, p2, p3, p4) {
+    const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+    const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+    const cross = d1x * d2y - d1y * d2x;
+    if (Math.abs(cross) < 1e-10) return false;
+    const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / cross;
+    const u = ((p3.x - p1.x) * d1y - (p3.y - p1.y) * d1x) / cross;
+    return t > 0.05 && t < 0.95 && u > 0.05 && u < 0.95;
+}
+
+// 偵測時相內衝突（直行 + 左轉；右轉為讓行不列入）
+function detectConflicts(arms, movements) {
+    if (!arms || !movements) return [];
+    const list = [];
+    arms.forEach((arm, i) => {
+        const m = movements[i];
+        if (!m) return;
+        if (m.thru) list.push({ arm, i, type: 'thru', label: `${arm.label} 直行` });
+        if (m.left) list.push({ arm, i, type: 'left', label: `${arm.label} 左轉` });
+    });
+    const out = [];
+    for (let a = 0; a < list.length; a++)
+        for (let b = a + 1; b < list.length; b++) {
+            if (list[a].i === list[b].i) continue;
+            const sa = getMovementSegment(list[a].arm, list[a].type);
+            const sb = getMovementSegment(list[b].arm, list[b].type);
+            if (segmentsIntersect(sa.p1, sa.p2, sb.p1, sb.p2))
+                out.push(`${list[a].label} ✕ ${list[b].label}`);
+        }
+    return out;
+}
+
+function getMovementSegment(arm, turnType) {
+    const ep = armEndpoints(arm.bearing, 13);
+    const exit = turnType === 'thru' ? ep.thruExit : turnType === 'left' ? ep.leftExit : ep.rightExit;
+    return { p1: ep.entry, p2: exit };
+}
+
+// ─── 資料模型工廠 ────────────────────────────────────────────────────────────
+
+function defaultArms() {
+    return [
+        { bearing: 90,  label: 'EB' },
+        { bearing: 270, label: 'WB' },
+        { bearing: 0,   label: 'NB' },
+        { bearing: 180, label: 'SB' },
+    ];
+}
+
+function defaultMovements(numArms = 4) {
+    return Array.from({ length: numArms }, () => ({ thru: false, left: false, right: false }));
+}
+
+function defaultPhase(green = 45, yellow = 3, allRed = 1, numArms = 4) {
+    return { green, yellow, allRed, movements: defaultMovements(numArms) };
+}
+
+function defaultPlan(numArms = 4) {
+    const p1 = defaultPhase(45, 3, 1, numArms);
+    if (numArms >= 1) p1.movements[0].thru = true;  // EB
+    if (numArms >= 2) p1.movements[1].thru = true;  // WB
+    const p2 = defaultPhase(45, 3, 1, numArms);
+    if (numArms >= 3) p2.movements[2].thru = true;  // NB
+    if (numArms >= 4) p2.movements[3].thru = true;  // SB
     const phases = [p1, p2];
     return { cycle: phases.reduce((s, p) => s + p.green + p.yellow + p.allRed, 0), offset: 0, phases };
 }
 
-// 舊格式（p1Green/p2Green/p1Dirs）升級為新格式
-function migratePlan(old) {
-    const p1 = defaultPhase(old.p1Green || 45, 3, 1);
-    const p2 = defaultPhase(old.p2Green || 45, 3, 1);
+// 舊版 movements 物件（ebThru/wbLeft/…）轉為新版陣列格式
+// 假設臂順序為 [EB, WB, NB, SB]（defaultArms 預設順序）
+function migrateMovements(old, numArms) {
+    const arr = defaultMovements(numArms);
+    if (!old) return arr;
+    if (numArms >= 1) arr[0] = { thru: !!old.ebThru, left: !!old.ebLeft, right: !!old.ebRight };
+    if (numArms >= 2) arr[1] = { thru: !!old.wbThru, left: !!old.wbLeft, right: !!old.wbRight };
+    if (numArms >= 3) arr[2] = { thru: !!old.nbThru, left: !!old.nbLeft, right: !!old.nbRight };
+    if (numArms >= 4) arr[3] = { thru: !!old.sbThru, left: !!old.sbLeft, right: !!old.sbRight };
+    return arr;
+}
+
+// 最舊格式（p1Green/p2Green/p1Dirs）轉換
+function migratePlan(old, numArms = 4) {
+    const p1 = defaultPhase(old.p1Green || 45, 3, 1, numArms);
+    const p2 = defaultPhase(old.p2Green || 45, 3, 1, numArms);
     if (old.p1Dirs) {
-        if (old.p1Dirs.thruEW) { p1.movements.ebThru = true; p1.movements.wbThru = true; }
-        if (old.p1Dirs.thruNS) { p1.movements.nbThru = true; p1.movements.sbThru = true; }
-        if (old.p1Dirs.leftEW) { p1.movements.ebLeft = true; p1.movements.wbLeft = true; }
-        if (old.p1Dirs.leftNS) { p1.movements.nbLeft = true; p1.movements.sbLeft = true; }
+        if (old.p1Dirs.thruEW) { if (numArms >= 1) p1.movements[0].thru = true; if (numArms >= 2) p1.movements[1].thru = true; }
+        if (old.p1Dirs.thruNS) { if (numArms >= 3) p1.movements[2].thru = true; if (numArms >= 4) p1.movements[3].thru = true; }
+        if (old.p1Dirs.leftEW) { if (numArms >= 1) p1.movements[0].left = true;  if (numArms >= 2) p1.movements[1].left = true; }
+        if (old.p1Dirs.leftNS) { if (numArms >= 3) p1.movements[2].left = true;  if (numArms >= 4) p1.movements[3].left = true; }
     }
     if (old.p2Dirs) {
-        if (old.p2Dirs.thruEW) { p2.movements.ebThru = true; p2.movements.wbThru = true; }
-        if (old.p2Dirs.thruNS) { p2.movements.nbThru = true; p2.movements.sbThru = true; }
-        if (old.p2Dirs.leftEW) { p2.movements.ebLeft = true; p2.movements.wbLeft = true; }
-        if (old.p2Dirs.leftNS) { p2.movements.nbLeft = true; p2.movements.sbLeft = true; }
+        if (old.p2Dirs.thruEW) { if (numArms >= 1) p2.movements[0].thru = true; if (numArms >= 2) p2.movements[1].thru = true; }
+        if (old.p2Dirs.thruNS) { if (numArms >= 3) p2.movements[2].thru = true; if (numArms >= 4) p2.movements[3].thru = true; }
+        if (old.p2Dirs.leftEW) { if (numArms >= 1) p2.movements[0].left = true;  if (numArms >= 2) p2.movements[1].left = true; }
+        if (old.p2Dirs.leftNS) { if (numArms >= 3) p2.movements[2].left = true;  if (numArms >= 4) p2.movements[3].left = true; }
     }
-    return { cycle: old.cycle || 120, offset: old.offset || 0, phases: [p1, p2] };
+    return { cycle: old.cycle || 98, offset: old.offset || 0, phases: [p1, p2] };
 }
 
 // ─── UI 模式切換 ─────────────────────────────────────────────────────────────
@@ -208,9 +265,11 @@ function setMode(newMode, btnEl) {
 map.on('click', function(e) {
     if (mode === 'ADD_NODE' && !justClosedPopup) {
         const id = 'N_' + Date.now().toString().slice(-4);
-        const nodeData = { id, name: '', lat: e.latlng.lat, lng: e.latlng.lng, bearing: 0, plan: defaultPlan() };
+        const arms = defaultArms();
+        const nodeData = { id, name: '', lat: e.latlng.lat, lng: e.latlng.lng, arms, plan: defaultPlan(arms.length) };
         state.nodes.push(nodeData);
         drawNode(nodeData);
+        updateSignals();
         rebuildTsdControls();
         updateTimeSpaceDiagram();
     }
@@ -301,25 +360,82 @@ function openEditor(node) {
     document.getElementById('input-node-id').value = node.id;
     document.getElementById('input-node-name').value = node.name || '';
     document.getElementById('input-offset').value = node.plan.offset;
-    document.getElementById('input-bearing').value = node.bearing || 0;
+    renderArmsEditor(node);
     renderPhaseEditor(node.plan);
 
-    // 即時預覽方向角
-    document.getElementById('input-bearing').oninput = () => {
+    document.getElementById('btn-add-arm').onclick = () => {
         const n = state.nodes.find(n => n.id === editingNodeId);
-        if (n) {
-            const raw = parseInt(document.getElementById('input-bearing').value);
-            const normalized = isNaN(raw) ? 0 : ((raw % 360) + 360) % 360;
-            document.getElementById('input-bearing').value = normalized;
-            n.bearing = normalized;
-            updateSignals();
-        }
+        if (!n) return;
+        n.arms.push({ bearing: 0, label: `臂${n.arms.length + 1}` });
+        n.plan.phases.forEach(ph => ph.movements.push({ thru: false, left: false, right: false }));
+        renderArmsEditor(n);
+        renderPhaseEditor(n.plan);
     };
 
     // 刪除路口
     document.getElementById('btn-delete-node').onclick = () => {
         if (confirm(`確定要刪除路口 ${node.id}？此操作無法復原。`)) deleteNode(node.id);
     };
+}
+
+function renderArmsEditor(node) {
+    const container = document.getElementById('arms-container');
+    container.innerHTML = '';
+    const arms = node.arms || [];
+    arms.forEach((arm, i) => {
+        const row = document.createElement('div');
+        row.className = 'arm-row';
+
+        const numSpan = document.createElement('span');
+        numSpan.className = 'arm-num';
+        numSpan.textContent = `#${i + 1}`;
+        row.appendChild(numSpan);
+
+        const bearingInput = document.createElement('input');
+        bearingInput.type = 'number';
+        bearingInput.className = 'arm-bearing';
+        bearingInput.value = arm.bearing;
+        bearingInput.min = 0; bearingInput.max = 359; bearingInput.step = 1;
+        bearingInput.title = '方位角（0=北,90=東,180=南,270=西）';
+        bearingInput.addEventListener('input', () => {
+            const raw = parseInt(bearingInput.value);
+            arm.bearing = isNaN(raw) ? 0 : ((raw % 360) + 360) % 360;
+            updateSignals();
+        });
+        row.appendChild(bearingInput);
+
+        const degSpan = document.createElement('span');
+        degSpan.textContent = '°';
+        row.appendChild(degSpan);
+
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'arm-label';
+        labelInput.value = arm.label;
+        labelInput.maxLength = 6;
+        labelInput.placeholder = 'EB';
+        labelInput.addEventListener('input', () => {
+            arm.label = labelInput.value.trim() || `臂${i + 1}`;
+            renderPhaseEditor(node.plan);
+        });
+        row.appendChild(labelInput);
+
+        if (arms.length > 2) {
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-del-arm';
+            delBtn.textContent = '✕';
+            delBtn.title = '刪除此臂';
+            delBtn.addEventListener('click', () => {
+                node.arms.splice(i, 1);
+                node.plan.phases.forEach(ph => ph.movements.splice(i, 1));
+                renderArmsEditor(node);
+                renderPhaseEditor(node.plan);
+                updateSignals();
+            });
+            row.appendChild(delBtn);
+        }
+        container.appendChild(row);
+    });
 }
 
 function deleteNode(nodeId) {
@@ -351,30 +467,17 @@ function refreshCycleDisplay(plan) {
 }
 
 function createPhaseBlock(phase, idx, totalPhases) {
+    const node = state.nodes.find(n => n.id === editingNodeId);
+    const arms = node ? (node.arms || defaultArms()) : defaultArms();
+
+    // 確保 movements 陣列長度與 arms 一致
+    while (phase.movements.length < arms.length)
+        phase.movements.push({ thru: false, left: false, right: false });
+    phase.movements.length = arms.length;
+
     const div = document.createElement('div');
     div.className = 'phase-block';
     div.dataset.phaseIdx = idx;
-
-    const approaches = [
-        { key: 'eb', label: '東向 →' },
-        { key: 'wb', label: '西向 ←' },
-        { key: 'nb', label: '北向 ↑' },
-        { key: 'sb', label: '南向 ↓' },
-    ];
-
-    let tableRows = '';
-    approaches.forEach(ap => {
-        const thruKey = ap.key + 'Thru';
-        const leftKey = ap.key + 'Left';
-        const rightKey = ap.key + 'Right';
-        tableRows += `
-            <tr>
-                <td>${ap.label}</td>
-                <td><input type="checkbox" class="mov-cb" data-key="${thruKey}" ${phase.movements[thruKey] ? 'checked' : ''}></td>
-                <td><input type="checkbox" class="mov-cb" data-key="${leftKey}" ${phase.movements[leftKey] ? 'checked' : ''}></td>
-                <td><input type="checkbox" class="mov-cb" data-key="${rightKey}" ${phase.movements[rightKey] ? 'checked' : ''}></td>
-            </tr>`;
-    });
 
     const upBtn   = idx > 0              ? `<button class="btn-phase-move" data-dir="-1" title="上移">↑</button>` : '';
     const downBtn = idx < totalPhases - 1 ? `<button class="btn-phase-move" data-dir="1"  title="下移">↓</button>` : '';
@@ -393,23 +496,32 @@ function createPhaseBlock(phase, idx, totalPhases) {
         </div>
         <table class="movement-table">
             <thead><tr><th>進向</th><th>直行</th><th>左轉</th><th>右轉</th></tr></thead>
-            <tbody>${tableRows}</tbody>
+            <tbody></tbody>
         </table>
         <div class="conflict-warning" style="display:none;"></div>
     `;
 
-    // 時相時間輸入：即時更新小計，並自動重算週期
+    const tbody = div.querySelector('tbody');
+    arms.forEach((arm, i) => {
+        const m = phase.movements[i] || { thru: false, left: false, right: false };
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="mov-arm-label">${arm.label}</td>` +
+            ['thru', 'left', 'right'].map(turn =>
+                `<td><input type="checkbox" class="mov-cb" data-arm="${i}" data-turn="${turn}" ${m[turn] ? 'checked' : ''}></td>`
+            ).join('');
+        tbody.appendChild(tr);
+    });
+
     div.querySelectorAll('.phase-input').forEach(input => {
         input.addEventListener('input', () => {
             const g  = parseInt(div.querySelector('[data-field="green"]').value)  || 0;
             const y  = parseInt(div.querySelector('[data-field="yellow"]').value) || 0;
             const ar = parseInt(div.querySelector('[data-field="allRed"]').value) || 0;
             div.querySelector('.phase-duration').innerText = g + y + ar;
-            syncPhaseFromDOM(); // 內部自動更新 plan.cycle 與 display-cycle
+            syncPhaseFromDOM();
         });
     });
 
-    // 動線勾選：即時衝突驗證
     div.querySelectorAll('.mov-cb').forEach(cb => {
         cb.addEventListener('change', () => {
             syncPhaseFromDOM();
@@ -417,28 +529,26 @@ function createPhaseBlock(phase, idx, totalPhases) {
         });
     });
 
-    // 上移 / 下移時相
     div.querySelectorAll('.btn-phase-move').forEach(btn => {
         btn.addEventListener('click', () => {
             syncPhaseFromDOM();
-            const node = state.nodes.find(n => n.id === editingNodeId);
-            if (!node) return;
+            const nd = state.nodes.find(n => n.id === editingNodeId);
+            if (!nd) return;
             const toIdx = idx + parseInt(btn.dataset.dir);
-            if (toIdx < 0 || toIdx >= node.plan.phases.length) return;
-            [node.plan.phases[idx], node.plan.phases[toIdx]] = [node.plan.phases[toIdx], node.plan.phases[idx]];
-            renderPhaseEditor(node.plan);
+            if (toIdx < 0 || toIdx >= nd.plan.phases.length) return;
+            [nd.plan.phases[idx], nd.plan.phases[toIdx]] = [nd.plan.phases[toIdx], nd.plan.phases[idx]];
+            renderPhaseEditor(nd.plan);
         });
     });
 
-    // 刪除時相
     const delEl = div.querySelector('.btn-del-phase');
     if (delEl) {
         delEl.addEventListener('click', () => {
             syncPhaseFromDOM();
-            const node = state.nodes.find(n => n.id === editingNodeId);
-            if (node) {
-                node.plan.phases.splice(idx, 1);
-                renderPhaseEditor(node.plan);
+            const nd = state.nodes.find(n => n.id === editingNodeId);
+            if (nd) {
+                nd.plan.phases.splice(idx, 1);
+                renderPhaseEditor(nd.plan);
             }
         });
     }
@@ -471,8 +581,7 @@ function syncPhaseFromDOM() {
 
     node.name = document.getElementById('input-node-name').value.trim();
     node.plan.offset = parseInt(document.getElementById('input-offset').value) || 0;
-    const rawBearing = parseInt(document.getElementById('input-bearing').value);
-    node.bearing = isNaN(rawBearing) ? 0 : ((rawBearing % 360) + 360) % 360;
+
     document.querySelectorAll('.phase-block').forEach((div, idx) => {
         const phase = node.plan.phases[idx];
         if (!phase) return;
@@ -480,10 +589,13 @@ function syncPhaseFromDOM() {
         phase.yellow = parseInt(div.querySelector('[data-field="yellow"]').value) || 0;
         phase.allRed = parseInt(div.querySelector('[data-field="allRed"]').value) || 0;
         div.querySelectorAll('.mov-cb').forEach(cb => {
-            phase.movements[cb.dataset.key] = cb.checked;
+            const ai = parseInt(cb.dataset.arm);
+            const turn = cb.dataset.turn;
+            if (!phase.movements[ai]) phase.movements[ai] = { thru: false, left: false, right: false };
+            phase.movements[ai][turn] = cb.checked;
         });
     });
-    refreshCycleDisplay(node.plan); // 自動更新 plan.cycle 與顯示
+    refreshCycleDisplay(node.plan);
 }
 
 // 衝突驗證：在各時相區塊顯示警告，回傳是否有衝突
@@ -494,13 +606,12 @@ function validateAndShowConflicts() {
     document.querySelectorAll('.phase-block').forEach((div, idx) => {
         const phase = node.plan.phases[idx];
         if (!phase) return;
-        const conflicts = CONFLICT_PAIRS.filter(([a, b]) => phase.movements[a] && phase.movements[b]);
+        const conflicts = detectConflicts(node.arms, phase.movements);
         const warnEl = div.querySelector('.conflict-warning');
         if (conflicts.length > 0) {
             hasConflict = true;
-            const msgs = conflicts.map(([a, b]) => `${MOVEMENT_LABELS[a]} ✕ ${MOVEMENT_LABELS[b]}`).join('<br>');
             warnEl.style.display = 'block';
-            warnEl.innerHTML = `<strong>⚠️ 衝突動線：</strong><br>${msgs}`;
+            warnEl.innerHTML = `<strong>⚠️ 衝突動線：</strong><br>${conflicts.join('<br>')}`;
         } else {
             warnEl.style.display = 'none';
         }
@@ -512,7 +623,7 @@ function validateAndShowConflicts() {
 document.getElementById('btn-add-phase').onclick = () => {
     const node = state.nodes.find(n => n.id === editingNodeId);
     if (node) {
-        node.plan.phases.push(defaultPhase(20, 3, 1));
+        node.plan.phases.push(defaultPhase(20, 3, 1, (node.arms || []).length));
         renderPhaseEditor(node.plan);
     }
 };
@@ -623,8 +734,16 @@ function updateNodeStatusPanel() {
     const info = getDetailedPhaseInfo(plan, localTime);
     const stateLabels = { green: '🟢 綠燈', yellow: '🟡 黃燈', allRed: '🔴 全紅' };
     const phaseLabel = info.phaseIndex >= 0 ? `第 ${info.phaseIndex + 1} 時相` : '全紅（未分配）';
-    const movList = info.movements
-        ? Object.entries(info.movements).filter(([, v]) => v).map(([k]) => MOVEMENT_LABELS[k]).join('、')
+    const arms = node.arms || defaultArms();
+    const movList = (info.movements && Array.isArray(info.movements))
+        ? info.movements.flatMap((m, i) => {
+            const lbl = arms[i] ? arms[i].label : `臂${i + 1}`;
+            const parts = [];
+            if (m.thru)  parts.push(`${lbl} 直行`);
+            if (m.left)  parts.push(`${lbl} 左轉`);
+            if (m.right) parts.push(`${lbl} 右轉`);
+            return parts;
+        }).join('、')
         : '';
 
     document.getElementById('node-status-content').innerHTML = `
@@ -653,16 +772,17 @@ function updateSignals() {
         const isSelected = node.id === selectedNodeId;
 
         // 只有狀態實際改變時才替換 DOM icon，避免高速模擬下滑鼠事件被中斷
-        const movKey = movements
-            ? Object.entries(movements).filter(([, v]) => v).map(([k]) => k).join(',')
+        const movKey = (movements && Array.isArray(movements))
+            ? movements.map((m, i) => `${i}:${m.thru ? 't' : ''}${m.left ? 'l' : ''}${m.right ? 'r' : ''}`).join(',')
             : '';
-        const stateKey = `${sigState}|${movKey}|${isSelected}|${node.bearing || 0}|${phaseIndex}`;
+        const armsKey = (node.arms || []).map(a => a.bearing).join(',');
+        const stateKey = `${sigState}|${movKey}|${isSelected}|${armsKey}|${phaseIndex}`;
         if (lastIconState[node.id] !== stateKey) {
             lastIconState[node.id] = stateKey;
             const marker = markers[node.id];
             if (marker) marker.setIcon(L.divIcon({
                 className: 'intersection-icon',
-                html: buildSignalSVG(sigState, movements, node.bearing || 0, isSelected, phaseIndex),
+                html: buildSignalSVG(sigState, movements, node.arms, isSelected, phaseIndex),
                 iconSize: [44, 44],
             }));
         }
@@ -670,7 +790,7 @@ function updateSignals() {
     updateNodeStatusPanel();
 }
 
-function buildSignalSVG(sigState, movements, bearing = 0, selected = false, phaseIndex = -1) {
+function buildSignalSVG(sigState, movements, arms, selected = false, phaseIndex = -1) {
     const selRing = selected
         ? `<circle cx="20" cy="20" r="18" fill="none" stroke="#007bff" stroke-width="2.5" stroke-dasharray="5 2"/>`
         : '';
@@ -678,62 +798,42 @@ function buildSignalSVG(sigState, movements, bearing = 0, selected = false, phas
         ? `<rect x="26" y="1" width="13" height="13" rx="2.5" fill="#333" opacity="0.82"/>` +
           `<text x="32.5" y="7.5" font-size="11" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="monospace">${phaseIndex + 1}</text>`
         : '';
-    if (sigState === 'allRed' || !movements) {
-        return `<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="#dc3545"/>${selRing}${phaseTag}</svg>`;
+
+    if (sigState === 'allRed' || !movements || !arms) {
+        // 全紅：先畫道路線段（從各臂穿越中心），再疊紅圈，露出路口形狀
+        const armLines = (arms || defaultArms()).map(arm => {
+            const ep = armEndpoints(arm.bearing, 18);
+            return `<line x1="${f(ep.entry.x)}" y1="${f(ep.entry.y)}" x2="${f(ep.thruExit.x)}" y2="${f(ep.thruExit.y)}" stroke="#888" stroke-width="4" stroke-linecap="round"/>`;
+        }).join('');
+        return `<svg width="40" height="40" viewBox="0 0 40 40">${armLines}<circle cx="20" cy="20" r="14" fill="#dc3545"/>${selRing}${phaseTag}</svg>`;
     }
+
     const clr = sigState === 'yellow' ? '#ffc107' : '#28a745';
     const bg  = sigState === 'yellow' ? '#fffbe6' : 'white';
+    const strokeAttrs = `stroke="${clr}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
 
-    // 收集直行路徑字串，後面重複使用（白色底襯 + 彩色上層）
-    const thruData = [];
-    if (movements.ebThru && movements.wbThru)
-        thruData.push(`M 5,20 L 35,20 M 10,15 L 5,20 L 10,25 M 30,15 L 35,20 L 30,25`);
-    else if (movements.ebThru)
-        thruData.push(`M 5,20 L 35,20 M 30,15 L 35,20 L 30,25`);
-    else if (movements.wbThru)
-        thruData.push(`M 35,20 L 5,20 M 10,15 L 5,20 L 10,25`);
-
-    if (movements.nbThru && movements.sbThru)
-        thruData.push(`M 20,5 L 20,35 M 15,10 L 20,5 L 25,10 M 15,30 L 20,35 L 25,30`);
-    else if (movements.nbThru)
-        thruData.push(`M 20,35 L 20,5 M 15,10 L 20,5 L 25,10`);
-    else if (movements.sbThru)
-        thruData.push(`M 20,5 L 20,35 M 15,30 L 20,35 L 25,30`);
-
-    // 層 1：圓環
     let p = `<circle cx="20" cy="20" r="16" fill="none" stroke="${clr}" stroke-width="2.5"/>`;
 
-    // 層 2：左轉箭頭（L 形：直行進路 + 90° 彎，出口箭頭朝正確方向）
-    // 控制點設計讓曲線起點切線 = 進路方向、終點切線 = 出口方向，形成清晰的直角彎。
-    // 箭頭尖端 r≤13，確保完全在圓環內緣內（r=14.75）不被遮蔽。
-    if (movements.ebLeft)   // 進路水平向右 y=14，轉北出口 (20,7)，箭頭朝上
-        p += `<path d="M 5,14 L 17,14 Q 20,14 20,7 M 17,10 L 20,7 L 23,10" stroke="${clr}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    if (movements.wbLeft)   // 進路水平向左 y=26，轉南出口 (20,33)，箭頭朝下
-        p += `<path d="M 35,26 L 23,26 Q 20,26 20,33 M 23,30 L 20,33 L 17,30" stroke="${clr}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    if (movements.nbLeft)   // 進路垂直向上 x=14，轉西出口 (7,20)，箭頭朝左
-        p += `<path d="M 14,35 L 14,23 Q 14,20 7,20 M 10,23 L 7,20 L 10,17" stroke="${clr}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    if (movements.sbLeft)   // 進路垂直向下 x=26，轉東出口 (33,20)，箭頭朝右
-        p += `<path d="M 26,5 L 26,17 Q 26,20 33,20 M 30,17 L 33,20 L 30,23" stroke="${clr}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    arms.forEach((arm, i) => {
+        const m = movements[i];
+        if (!m) return;
+        const ep = armEndpoints(arm.bearing);
 
-    // 層 3：彩色直行箭頭（畫在左轉之後；同色疊畫，交叉點不產生視覺干擾）
-    thruData.forEach(d => {
-        p += `<path d="${d}" stroke="${clr}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+        if (m.thru) {
+            const arr = svgArrow(ep.thruExit.x, ep.thruExit.y, ep.thruDir.x, ep.thruDir.y);
+            p += `<path d="M ${f(ep.entry.x)},${f(ep.entry.y)} L ${f(ep.thruExit.x)},${f(ep.thruExit.y)} ${arr}" ${strokeAttrs} stroke-width="2.5"/>`;
+        }
+        if (m.left) {
+            const arr = svgArrow(ep.leftExit.x, ep.leftExit.y, ep.leftDir.x, ep.leftDir.y);
+            p += `<path d="M ${f(ep.entry.x)},${f(ep.entry.y)} Q 20,20 ${f(ep.leftExit.x)},${f(ep.leftExit.y)} ${arr}" ${strokeAttrs} stroke-width="2"/>`;
+        }
+        if (m.right) {
+            const arr = svgArrow(ep.rightExit.x, ep.rightExit.y, ep.rightDir.x, ep.rightDir.y);
+            p += `<path d="M ${f(ep.entry.x)},${f(ep.entry.y)} Q 20,20 ${f(ep.rightExit.x)},${f(ep.rightExit.y)} ${arr}" ${strokeAttrs} stroke-width="2"/>`;
+        }
     });
 
-    // 層 5：右轉箭頭（L 形，與左轉對稱）
-    // ebRight/wbRight 進路在 y=26/y=14（與 ebLeft/wbLeft 的 y=14/y=26 鏡像）
-    // nbRight/sbRight 進路在 x=26/x=14（與 nbLeft/sbLeft 的 x=14/x=26 鏡像）
-    if (movements.ebRight)  // 進路水平向右 y=26，轉南出口 (20,33)，箭頭朝下
-        p += `<path d="M 5,26 L 17,26 Q 20,26 20,33 M 17,30 L 20,33 L 23,30" stroke="${clr}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    if (movements.wbRight)  // 進路水平向左 y=14，轉北出口 (20,7)，箭頭朝上
-        p += `<path d="M 35,14 L 23,14 Q 20,14 20,7 M 17,10 L 20,7 L 23,10" stroke="${clr}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    if (movements.nbRight)  // 進路垂直向上 x=26，轉東出口 (33,20)，箭頭朝右
-        p += `<path d="M 26,35 L 26,23 Q 26,20 33,20 M 30,17 L 33,20 L 30,23" stroke="${clr}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-    if (movements.sbRight)  // 進路垂直向下 x=14，轉西出口 (7,20)，箭頭朝左
-        p += `<path d="M 14,5 L 14,17 Q 14,20 7,20 M 10,17 L 7,20 L 10,23" stroke="${clr}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
-
-    const inner = bearing ? `<g transform="rotate(${bearing}, 20, 20)">${p}</g>` : p;
-    return `<svg width="40" height="40" viewBox="0 0 40 40" style="background:${bg}; border-radius:50%;">${inner}${selRing}${phaseTag}</svg>`;
+    return `<svg width="40" height="40" viewBox="0 0 40 40" style="background:${bg}; border-radius:50%;">${p}${selRing}${phaseTag}</svg>`;
 }
 
 // ─── 模擬引擎 ────────────────────────────────────────────────────────────────
@@ -1250,9 +1350,6 @@ function buildNodeCard(node) {
         <label class="anc-field">時差
             <input type="number" class="anc-input anc-offset" value="${node.plan.offset}" min="0"> 秒
         </label>
-        <label class="anc-field">方位角
-            <input type="number" class="anc-input anc-bearing" value="${node.bearing || 0}" min="0" max="359"> °
-        </label>
         <span class="anc-cycle-display">週期：<strong class="anc-cycle">${node.plan.cycle}</strong> 秒</span>
     `;
     body.appendChild(fieldsDiv);
@@ -1283,15 +1380,32 @@ function buildNodeCard(node) {
         node.name = fieldsDiv.querySelector('.anc-name').value.trim();
         header.textContent = node.name ? `${node.id}　${node.name}` : node.id;
         node.plan.offset = parseInt(fieldsDiv.querySelector('.anc-offset').value) || 0;
-        const rawBearing = parseInt(fieldsDiv.querySelector('.anc-bearing').value);
-        node.bearing = isNaN(rawBearing) ? 0 : ((rawBearing % 360) + 360) % 360;
         updateSignals();
     };
 
     fieldsDiv.querySelector('.anc-id').addEventListener('change', syncBasic);
     fieldsDiv.querySelector('.anc-name').addEventListener('input', syncBasic);
     fieldsDiv.querySelector('.anc-offset').addEventListener('input', syncBasic);
-    fieldsDiv.querySelector('.anc-bearing').addEventListener('input', syncBasic);
+
+    // 臂管理區
+    const armsSection = document.createElement('div');
+    armsSection.className = 'anc-arms-section';
+    const armsListDiv = document.createElement('div');
+    armsListDiv.className = 'anc-arms-list';
+    armsSection.appendChild(armsListDiv);
+    const addArmBtn = document.createElement('button');
+    addArmBtn.className = 'anc-add-arm';
+    addArmBtn.textContent = '＋ 新增臂';
+    addArmBtn.onclick = () => {
+        node.arms.push({ bearing: 0, label: `臂${node.arms.length + 1}` });
+        node.plan.phases.forEach(ph => ph.movements.push({ thru: false, left: false, right: false }));
+        rebuildCardArms(armsListDiv, node, card);
+        refreshCardPhases(card, node);
+        updateSignals();
+    };
+    armsSection.appendChild(addArmBtn);
+    body.appendChild(armsSection);
+    rebuildCardArms(armsListDiv, node, card);
 
     // 時相區
     const phasesDiv = document.createElement('div');
@@ -1302,7 +1416,7 @@ function buildNodeCard(node) {
     addPhaseBtn.className = 'anc-add-phase';
     addPhaseBtn.textContent = '＋ 新增時相';
     addPhaseBtn.onclick = () => {
-        node.plan.phases.push(defaultPhase(20, 3, 1));
+        node.plan.phases.push(defaultPhase(20, 3, 1, (node.arms || []).length));
         refreshCardPhases(card, node);
         rebuildTsdControls();
     };
@@ -1311,6 +1425,59 @@ function buildNodeCard(node) {
     card.appendChild(body);
     refreshCardPhases(card, node);
     return card;
+}
+
+function rebuildCardArms(armsListDiv, node, card) {
+    armsListDiv.innerHTML = '';
+    (node.arms || []).forEach((arm, i) => {
+        const row = document.createElement('div');
+        row.className = 'anc-arm-row';
+
+        const numSpan = document.createElement('span');
+        numSpan.className = 'anc-arm-num';
+        numSpan.textContent = `#${i + 1}`;
+        row.appendChild(numSpan);
+
+        const bearingInput = document.createElement('input');
+        bearingInput.type = 'number';
+        bearingInput.className = 'anc-arm-bearing';
+        bearingInput.value = arm.bearing;
+        bearingInput.min = 0; bearingInput.max = 359;
+        bearingInput.title = '方位角（0=北,90=東,180=南,270=西）';
+        bearingInput.addEventListener('input', () => {
+            const raw = parseInt(bearingInput.value);
+            arm.bearing = isNaN(raw) ? 0 : ((raw % 360) + 360) % 360;
+            updateSignals();
+        });
+        row.appendChild(bearingInput);
+        row.appendChild(document.createTextNode('°'));
+
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'anc-arm-label';
+        labelInput.value = arm.label;
+        labelInput.maxLength = 6;
+        labelInput.addEventListener('input', () => {
+            arm.label = labelInput.value.trim() || `臂${i + 1}`;
+            refreshCardPhases(card, node);
+        });
+        row.appendChild(labelInput);
+
+        if (node.arms.length > 2) {
+            const delBtn = document.createElement('button');
+            delBtn.className = 'anc-arm-del';
+            delBtn.textContent = '✕';
+            delBtn.onclick = () => {
+                node.arms.splice(i, 1);
+                node.plan.phases.forEach(ph => ph.movements.splice(i, 1));
+                rebuildCardArms(armsListDiv, node, card);
+                refreshCardPhases(card, node);
+                updateSignals();
+            };
+            row.appendChild(delBtn);
+        }
+        armsListDiv.appendChild(row);
+    });
 }
 
 function refreshCardPhases(card, node) {
@@ -1323,6 +1490,13 @@ function refreshCardPhases(card, node) {
 }
 
 function buildCardPhaseBlock(phase, idx, node, card) {
+    const arms = node.arms || defaultArms();
+
+    // 確保 movements 陣列長度與 arms 一致
+    while (phase.movements.length < arms.length)
+        phase.movements.push({ thru: false, left: false, right: false });
+    phase.movements.length = arms.length;
+
     const div = document.createElement('div');
     div.className = 'anc-phase-block';
 
@@ -1330,7 +1504,6 @@ function buildCardPhaseBlock(phase, idx, node, card) {
     const canDown  = idx < node.plan.phases.length - 1;
     const canDel   = node.plan.phases.length > 1;
 
-    // 時相標題列
     const headerDiv = document.createElement('div');
     headerDiv.className = 'anc-phase-header';
     headerDiv.innerHTML = `
@@ -1349,7 +1522,6 @@ function buildCardPhaseBlock(phase, idx, node, card) {
     `;
     div.appendChild(headerDiv);
 
-    // 時相時間輸入
     headerDiv.querySelectorAll('.anc-ph-input').forEach(input => {
         input.addEventListener('input', () => {
             const g  = parseInt(headerDiv.querySelector('[data-field="green"]').value)  || 0;
@@ -1363,7 +1535,6 @@ function buildCardPhaseBlock(phase, idx, node, card) {
         });
     });
 
-    // 上移 / 下移
     headerDiv.querySelectorAll('.anc-ph-btn[data-dir]').forEach(btn => {
         btn.addEventListener('click', () => {
             const toIdx = idx + parseInt(btn.dataset.dir);
@@ -1373,7 +1544,6 @@ function buildCardPhaseBlock(phase, idx, node, card) {
         });
     });
 
-    // 刪除時相
     const delEl = headerDiv.querySelector('.anc-ph-del');
     if (delEl) {
         delEl.addEventListener('click', () => {
@@ -1385,32 +1555,27 @@ function buildCardPhaseBlock(phase, idx, node, card) {
         });
     }
 
-    // 動線
+    // 動線（n-arm）
     const movDiv = document.createElement('div');
     movDiv.className = 'anc-movements';
-    const approaches = [
-        { key: 'eb', label: '東→' },
-        { key: 'wb', label: '西←' },
-        { key: 'nb', label: '北↑' },
-        { key: 'sb', label: '南↓' },
-    ];
-    approaches.forEach(ap => {
+    arms.forEach((arm, i) => {
+        const m = phase.movements[i] || { thru: false, left: false, right: false };
         const group = document.createElement('div');
         group.className = 'anc-mov-group';
         const apSpan = document.createElement('span');
         apSpan.className = 'anc-mov-approach';
-        apSpan.textContent = ap.label;
+        apSpan.textContent = arm.label;
         group.appendChild(apSpan);
-        [['Thru', '直'], ['Left', '左'], ['Right', '右']].forEach(([turn, label]) => {
-            const key = ap.key + turn;
+        [['thru', '直'], ['left', '左'], ['right', '右']].forEach(([turn, label]) => {
             const lbl = document.createElement('label');
             lbl.className = 'anc-mov-label';
             const cb = document.createElement('input');
             cb.type = 'checkbox';
-            cb.checked = phase.movements[key];
+            cb.checked = m[turn] || false;
             cb.addEventListener('change', () => {
-                phase.movements[key] = cb.checked;
-                validateCardConflicts(div, phase);
+                if (!phase.movements[i]) phase.movements[i] = { thru: false, left: false, right: false };
+                phase.movements[i][turn] = cb.checked;
+                validateCardConflicts(div, phase, node.arms);
                 updateSignals();
             });
             lbl.appendChild(cb);
@@ -1421,12 +1586,11 @@ function buildCardPhaseBlock(phase, idx, node, card) {
     });
     div.appendChild(movDiv);
 
-    // 衝突警告
     const warnDiv = document.createElement('div');
     warnDiv.className = 'anc-conflict-warn';
     warnDiv.style.display = 'none';
     div.appendChild(warnDiv);
-    validateCardConflicts(div, phase);
+    validateCardConflicts(div, phase, node.arms);
 
     return div;
 }
@@ -1437,14 +1601,13 @@ function updateCardCycle(card, node) {
     if (el) el.textContent = node.plan.cycle;
 }
 
-function validateCardConflicts(phaseDiv, phase) {
-    const conflicts = CONFLICT_PAIRS.filter(([a, b]) => phase.movements[a] && phase.movements[b]);
+function validateCardConflicts(phaseDiv, phase, arms) {
+    const conflicts = detectConflicts(arms || defaultArms(), phase.movements || []);
     const warnEl = phaseDiv.querySelector('.anc-conflict-warn');
     if (!warnEl) return;
     if (conflicts.length > 0) {
-        const msgs = conflicts.map(([a, b]) => `${MOVEMENT_LABELS[a]} ✕ ${MOVEMENT_LABELS[b]}`).join('<br>');
         warnEl.style.display = 'block';
-        warnEl.innerHTML = `<strong>⚠️ 衝突動線：</strong><br>${msgs}`;
+        warnEl.innerHTML = `<strong>⚠️ 衝突動線：</strong><br>${conflicts.join('<br>')}`;
     } else {
         warnEl.style.display = 'none';
     }
@@ -1505,7 +1668,27 @@ document.getElementById('file-load').addEventListener('change', function(e) {
         state = JSON.parse(event.target.result);
         // 自動升級舊格式
         state.nodes.forEach(node => {
-            if (!node.plan.phases) node.plan = migratePlan(node.plan);
+            // 1. 建立 arms（若尚未有）
+            if (!node.arms) {
+                const b = node.bearing || 0;
+                node.arms = [
+                    { bearing: (90  + b) % 360, label: 'EB' },
+                    { bearing: (270 + b) % 360, label: 'WB' },
+                    { bearing: (0   + b) % 360, label: 'NB' },
+                    { bearing: (180 + b) % 360, label: 'SB' },
+                ];
+            }
+            const numArms = node.arms.length;
+            // 2. 升級 plan（最舊格式）
+            if (!node.plan.phases) {
+                node.plan = migratePlan(node.plan, numArms);
+            } else {
+                // 3. 升級各時相 movements（舊物件格式 → 新陣列格式）
+                node.plan.phases.forEach(ph => {
+                    if (!Array.isArray(ph.movements))
+                        ph.movements = migrateMovements(ph.movements, numArms);
+                });
+            }
             drawNode(node);
         });
         renderLinks();

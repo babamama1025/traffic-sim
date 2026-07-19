@@ -58,9 +58,10 @@
                     <label>路口名稱:</label>
                     <input type="text" id="input-node-name" placeholder="（選填）">
                 </div>
-                <div class="form-group">
-                    <label title="順時針偏轉角度，讓箭頭圖示對齊實際道路方向">路口方向角 (°):</label>
-                    <input type="number" id="input-bearing" value="0" title="順時針偏轉，0=東西向，45=東北-西南向">
+                <div id="arms-section">
+                    <div class="arms-section-label">進向臂設定：</div>
+                    <div id="arms-container"></div>
+                    <button id="btn-add-arm" type="button">＋ 新增臂</button>
                 </div>
                 <div class="form-group">
                     <label>週期 (自動計算):</label>
