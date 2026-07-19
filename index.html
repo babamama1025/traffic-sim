@@ -106,6 +106,20 @@
             <span class="tsd-hint">路口依實際地理距離等比例排列（由西向東），縱軸間距反映真實距離，綠/黃/紅帶對應各路口號誌狀態</span>
             <div class="tsd-controls-header">點選數字以選擇納入綠寬的時相（可複選）</div>
             <div id="tsd-controls"></div>
+            <div id="gb-bar">
+                <button id="btn-gb-toggle">🟢 繪製綠寬帶</button>
+                <div id="gb-settings" hidden>
+                    <label>方向
+                        <select id="gb-dir">
+                            <option value="EB">→ EB（由西向東）</option>
+                            <option value="WB">← WB（由東向西）</option>
+                        </select>
+                    </label>
+                    <label>速率 <input id="gb-speed-input" type="number" value="40" min="1" max="200"> km/h</label>
+                    <span class="gb-chips-label">路口：</span>
+                    <div id="gb-node-chips"></div>
+                </div>
+            </div>
             <div id="tsd-canvas-wrap">
                 <canvas id="ts-canvas"></canvas>
                 <div id="tsd-scrollbar"><div id="tsd-scroll-inner"></div></div>

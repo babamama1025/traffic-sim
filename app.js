@@ -14,6 +14,10 @@ let polylines = [];
 let lastIconState = {}; // { [nodeId]: stateKey } — 避免無謂的 setIcon DOM 替換
 let tsdPhaseSelection = {}; // { [nodeId]: number[] } — 時空圖各路口顯示時相（可多選）
 let tsdTimeOffset = 0;      // 時空圖時間偏移（秒）；0 = 跟隨模擬，負值 = 回顧過去（最多 -600）
+let gbEnabled     = false;
+let gbSpeed       = 40;          // 設計速率 (km/h)
+let gbDirection   = 'EB';        // 'EB' 由西向東 | 'WB' 由東向西
+let gbSelectedIds = null;        // null = 全選；Set<id> 表示已選路口
 
 // 模擬與時間變數
 let simulationTime = 0;
@@ -767,6 +771,32 @@ document.getElementById('btn-arterial').onclick = () => {
 document.getElementById('btn-close-tsd').onclick = () => tsdOverlay.classList.remove('open');
 tsdOverlay.addEventListener('click', e => { if (e.target === tsdOverlay) tsdOverlay.classList.remove('open'); });
 
+// 綠寬帶控制
+document.getElementById('btn-gb-toggle').addEventListener('click', () => {
+    gbEnabled = !gbEnabled;
+    const btn      = document.getElementById('btn-gb-toggle');
+    const settings = document.getElementById('gb-settings');
+    if (gbEnabled) {
+        btn.classList.add('active');
+        btn.textContent = '🟢 綠寬帶（開）';
+        settings.hidden = false;
+        rebuildGbNodeChips();
+    } else {
+        btn.classList.remove('active');
+        btn.textContent = '🟢 繪製綠寬帶';
+        settings.hidden = true;
+    }
+    updateTimeSpaceDiagram();
+});
+document.getElementById('gb-dir').addEventListener('change', e => {
+    gbDirection = e.target.value;
+    updateTimeSpaceDiagram();
+});
+document.getElementById('gb-speed-input').addEventListener('input', e => {
+    const v = parseFloat(e.target.value);
+    if (v > 0) { gbSpeed = v; updateTimeSpaceDiagram(); }
+});
+
 btnPlay.onclick = tsdBtnPlay.onclick = () => {
     simStarted = true;
     startTimer();
@@ -860,6 +890,170 @@ function rebuildTsdControls() {
 
         container.appendChild(row);
     });
+    if (gbEnabled) rebuildGbNodeChips();
+}
+
+// ─── 幹道綠寬帶 ─────────────────────────────────────────────────────────────
+
+// 依方向與使用者選擇，回傳有序路口陣列（EB 由西向東；WB 由東向西）
+function gbGetOrderedNodes(sortedNodes) {
+    const base = (gbSelectedIds === null || gbSelectedIds.size === 0)
+        ? sortedNodes
+        : sortedNodes.filter(n => gbSelectedIds.has(n.id));
+    return gbDirection === 'WB' ? [...base].reverse() : base;
+}
+
+// 回傳 plan 在 [searchMin, searchMax] 內的純綠燈區間（絕對時間）
+function getGreenIntervals(plan, selectedPhases, searchMin, searchMax) {
+    if (!plan || !plan.phases || plan.cycle <= 0 || !selectedPhases.length) return [];
+    const intervals = [];
+    const cycle = plan.cycle;
+    // 從 searchMin 的前一個週期開始，確保不遺漏橫跨邊界的區間
+    let base = Math.floor((searchMin - plan.offset) / cycle) * cycle + plan.offset - cycle;
+    while (base <= searchMax) {
+        let elapsed = 0;
+        for (let i = 0; i < plan.phases.length; i++) {
+            const ph = plan.phases[i];
+            if (selectedPhases.includes(i) && ph.green > 0) {
+                const gStart = base + elapsed;
+                const gEnd   = gStart + ph.green;
+                if (gEnd > searchMin && gStart < searchMax)
+                    intervals.push({ start: gStart, end: gEnd });
+            }
+            elapsed += ph.green + ph.yellow + ph.allRed;
+        }
+        base += cycle;
+    }
+    return intervals;
+}
+
+// 兩組已排序、不重疊的區間取交集
+function intersectIntervals(A, B) {
+    const result = [];
+    let ai = 0, bi = 0;
+    while (ai < A.length && bi < B.length) {
+        const s = Math.max(A[ai].start, B[bi].start);
+        const e = Math.min(A[ai].end,   B[bi].end);
+        if (s < e) result.push({ start: s, end: e });
+        if (A[ai].end <= B[bi].end) ai++; else bi++;
+    }
+    return result;
+}
+
+// 計算綠寬帶區間（以進入第一個路口的時間表示）
+// travelTimes[i] = 從 gbNodes[0] 到 gbNodes[i] 的行程時間（秒）
+function computeGreenBands(gbNodes, travelTimes, searchMin, searchMax) {
+    const sel0 = (tsdPhaseSelection[gbNodes[0].id] || [0])
+        .filter(i => i < gbNodes[0].plan.phases.length);
+    let feasible = getGreenIntervals(gbNodes[0].plan, sel0, searchMin, searchMax);
+    for (let i = 1; i < gbNodes.length; i++) {
+        const tt  = travelTimes[i];
+        const sel = (tsdPhaseSelection[gbNodes[i].id] || [0])
+            .filter(j => j < gbNodes[i].plan.phases.length);
+        const greenI  = getGreenIntervals(gbNodes[i].plan, sel, searchMin + tt, searchMax + tt);
+        const shifted = greenI.map(iv => ({ start: iv.start - tt, end: iv.end - tt }));
+        feasible = intersectIntervals(feasible, shifted);
+        if (!feasible.length) break;
+    }
+    return feasible.map(iv => ({ start: iv.start, end: iv.end, bw: iv.end - iv.start }));
+}
+
+// 在 canvas 上繪製綠寬帶（需在 clip context 內呼叫）
+function drawGreenBands(sortedNodes, yPositions, padL, drawW, padT, minTime, maxTime, timeWindow) {
+    const orderedNodes = gbGetOrderedNodes(sortedNodes);
+    if (orderedNodes.length < 2) return;
+
+    const speedMs = gbSpeed / 3.6;
+    // 計算累積行程時間
+    const travelTimes = [0];
+    for (let i = 1; i < orderedNodes.length; i++)
+        travelTimes.push(travelTimes[i - 1] + haversineM(orderedNodes[i - 1], orderedNodes[i]) / speedMs);
+    const lastTT = travelTimes[travelTimes.length - 1];
+
+    const bands = computeGreenBands(orderedNodes, travelTimes, minTime - lastTT - 5, maxTime + 5);
+    if (!bands.length) return;
+
+    const yMap  = new Map(sortedNodes.map((n, i) => [n.id, yPositions[i]]));
+    const tToX  = t => padL + ((t - minTime) / timeWindow) * drawW;
+
+    ctx.save();
+    bands.forEach(({ start, end, bw }) => {
+        if (bw < 0.5) return;
+        // 繪製各相鄰路口間的平行四邊形
+        for (let i = 0; i < orderedNodes.length - 1; i++) {
+            const nA = orderedNodes[i], nB = orderedNodes[i + 1];
+            const ttA = travelTimes[i],  ttB = travelTimes[i + 1];
+            const yA  = yMap.get(nA.id), yB  = yMap.get(nB.id);
+            if (yA == null || yB == null) continue;
+            const x1A = tToX(start + ttA), x2A = tToX(end + ttA);
+            const x1B = tToX(start + ttB), x2B = tToX(end + ttB);
+
+            // 填色
+            ctx.fillStyle = 'rgba(40, 167, 69, 0.15)';
+            ctx.beginPath();
+            ctx.moveTo(x1A, yA); ctx.lineTo(x2A, yA);
+            ctx.lineTo(x2B, yB); ctx.lineTo(x1B, yB);
+            ctx.closePath();
+            ctx.fill();
+
+            // 前後緣斜線
+            ctx.strokeStyle = 'rgba(30, 126, 52, 0.9)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(x1A, yA); ctx.lineTo(x1B, yB);
+            ctx.moveTo(x2A, yA); ctx.lineTo(x2B, yB);
+            ctx.stroke();
+        }
+        // 帶寬標籤（顯示於第一個路口中心上方）
+        const yFirst = yMap.get(orderedNodes[0].id);
+        if (yFirst != null) {
+            const xMid = tToX(start + travelTimes[0] + bw / 2);
+            if (xMid >= padL && xMid <= padL + drawW) {
+                ctx.fillStyle = 'rgba(30, 126, 52, 0.95)';
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${Math.round(bw)}s`, xMid, yFirst - 5);
+                ctx.textAlign = 'left';
+            }
+        }
+    });
+    ctx.restore();
+}
+
+// 重建路口選擇晶片
+function rebuildGbNodeChips() {
+    const container = document.getElementById('gb-node-chips');
+    if (!container) return;
+    container.innerHTML = '';
+    const sortedNodes = [...state.nodes].sort((a, b) => a.lng - b.lng);
+    if (gbSelectedIds === null) {
+        gbSelectedIds = new Set(sortedNodes.map(n => n.id));
+    } else {
+        // 清除已消失的路口，補入新路口
+        const valid = new Set(sortedNodes.map(n => n.id));
+        gbSelectedIds.forEach(id => { if (!valid.has(id)) gbSelectedIds.delete(id); });
+        sortedNodes.forEach(n => gbSelectedIds.add(n.id));
+    }
+    sortedNodes.forEach(node => {
+        const btn = document.createElement('button');
+        btn.className = 'tsd-phase-toggle gb-chip' + (gbSelectedIds.has(node.id) ? ' active' : '');
+        btn.textContent = node.name || node.id;
+        btn.title = node.name || node.id;
+        btn.addEventListener('click', () => {
+            const active = [...gbSelectedIds].filter(id => sortedNodes.some(n => n.id === id));
+            if (gbSelectedIds.has(node.id)) {
+                if (active.length <= 2) return;
+                gbSelectedIds.delete(node.id);
+                btn.classList.remove('active');
+            } else {
+                gbSelectedIds.add(node.id);
+                btn.classList.add('active');
+            }
+            updateTimeSpaceDiagram();
+        });
+        container.appendChild(btn);
+    });
 }
 
 function haversineM(n1, n2) {
@@ -910,6 +1104,12 @@ function updateTimeSpaceDiagram() {
         ctx.fillText(t + 's', x - 10, padT + drawH + 15);
     }
 
+    // 預先計算各路口 Y 座標（供號誌色帶與綠寬帶共用）
+    const yPositions = sortedNodes.map((_, index) => {
+        const ratio = numNodes === 1 ? 0.5 : cumDist[index] / totalDist;
+        return padT + nodeTopMargin + ratio * (virtualDrawH - nodeTopMargin - nodeBottomMargin) - scrollY;
+    });
+
     // 將各路口色帶與標籤裁剪在可視範圍內
     ctx.save();
     ctx.beginPath();
@@ -918,8 +1118,7 @@ function updateTimeSpaceDiagram() {
 
     // 各路口號誌色帶
     sortedNodes.forEach((node, index) => {
-        const ratio = numNodes === 1 ? 0.5 : cumDist[index] / totalDist;
-        const y = padT + nodeTopMargin + ratio * (virtualDrawH - nodeTopMargin - nodeBottomMargin) - scrollY;
+        const y = yPositions[index];
 
         // 可視範圍外跳過（留 15px 緩衝避免標籤截斷）
         if (y < padT - 15 || y > padT + drawH + 15) return;
@@ -952,6 +1151,10 @@ function updateTimeSpaceDiagram() {
         ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + drawW, y); ctx.stroke();
     });
+
+    // 綠寬帶（繪於號誌色帶上方，同在 clip 內）
+    if (gbEnabled && state.nodes.length >= 2)
+        drawGreenBands(sortedNodes, yPositions, padL, drawW, padT, minTime, maxTime, timeWindow);
 
     ctx.restore();
 
@@ -1306,6 +1509,10 @@ document.getElementById('file-load').addEventListener('change', function(e) {
             drawNode(node);
         });
         renderLinks();
+        if (state.nodes.length > 0) {
+            const latlngs = state.nodes.map(n => [n.lat, n.lng]);
+            map.fitBounds(L.latLngBounds(latlngs), { padding: [60, 60] });
+        }
         updateSignals();
         tsdPhaseSelection = {};
         rebuildTsdControls();

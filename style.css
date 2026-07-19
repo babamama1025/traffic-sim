@@ -129,6 +129,17 @@ button.active { background: #007bff; color: white; border-color: #0056b3; }
 .tsd-phase-toggle { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; font-size: 11px; font-weight: bold; border: 1.5px solid #bbb; border-radius: 4px; background: #f0f0f0; color: #888; cursor: pointer; user-select: none; transition: background 0.12s, color 0.12s, border-color 0.12s; padding: 0; }
 .tsd-phase-toggle.active { background: #28a745; border-color: #1e7e34; color: #fff; }
 .tsd-phase-toggle:hover:not(.active) { background: #e0e0e0; color: #444; }
+#gb-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+#gb-settings { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: #444; }
+#gb-settings label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+#gb-settings input[type="number"] { width: 50px; font-size: 12px; border: 1px solid #bbb; border-radius: 3px; padding: 1px 3px; }
+#gb-settings select { font-size: 12px; border: 1px solid #bbb; border-radius: 3px; padding: 1px 3px; }
+#gb-node-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.gb-chips-label { font-size: 11px; color: #888; white-space: nowrap; }
+.gb-chip { width: auto !important; padding: 0 7px !important; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px !important; height: 22px !important; }
+#btn-gb-toggle { font-size: 12px; padding: 3px 10px; border: 1px solid #ccc; border-radius: 4px; background: #f8f9fa; cursor: pointer; white-space: nowrap; }
+#btn-gb-toggle:hover { background: #e9ecef; }
+#btn-gb-toggle.active { background: #fd7e14; color: #fff; border-color: #e8680a; font-weight: bold; }
 #tsd-canvas-wrap { display: flex; align-items: stretch; height: 300px; }
 #ts-canvas { flex: 1; min-width: 0; display: block; background: #fafafa; border: 1px solid #ddd; }
 #tsd-scrollbar { width: 16px; flex-shrink: 0; overflow-y: scroll; overflow-x: hidden; background: #f0f0f0; border: 1px solid #ddd; border-left: none; box-sizing: border-box; }
