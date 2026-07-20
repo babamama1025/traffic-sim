@@ -155,6 +155,17 @@ function segmentsIntersect(p1, p2, p3, p4) {
     return t > 0.05 && t < 0.95 && u > 0.05 && u < 0.95;
 }
 
+// 找 bearing 最接近 targetBearing 的臂（排除 fromIdx 自身）
+function findExitArm(fromIdx, targetBearing, arms) {
+    let bestIdx = -1, bestDiff = Infinity;
+    arms.forEach((arm, j) => {
+        if (j === fromIdx) return;
+        const d = Math.abs(((arm.bearing - targetBearing + 540) % 360) - 180);
+        if (d < bestDiff) { bestDiff = d; bestIdx = j; }
+    });
+    return bestIdx;
+}
+
 // 偵測時相內衝突（直行 + 左轉；右轉為讓行不列入）
 function detectConflicts(arms, movements) {
     if (!arms || !movements) return [];
@@ -169,18 +180,26 @@ function detectConflicts(arms, movements) {
     for (let a = 0; a < list.length; a++)
         for (let b = a + 1; b < list.length; b++) {
             if (list[a].i === list[b].i) continue;
-            const sa = getMovementSegment(list[a].arm, list[a].type);
-            const sb = getMovementSegment(list[b].arm, list[b].type);
+            const sa = getMovementSegment(list[a].arm, list[a].type, list[a].i, arms);
+            const sb = getMovementSegment(list[b].arm, list[b].type, list[b].i, arms);
             if (segmentsIntersect(sa.p1, sa.p2, sb.p1, sb.p2))
                 out.push(`${list[a].label} ✕ ${list[b].label}`);
         }
     return out;
 }
 
-function getMovementSegment(arm, turnType) {
-    const ep = armEndpoints(arm.bearing, 13);
-    const exit = turnType === 'thru' ? ep.thruExit : turnType === 'left' ? ep.leftExit : ep.rightExit;
-    return { p1: ep.entry, p2: exit };
+function getMovementSegment(arm, turnType, armIdx, arms) {
+    const r = 13;
+    const ep = armEndpoints(arm.bearing, r);
+    let exitPt;
+    if (turnType === 'thru') {
+        exitPt = ep.thruExit;
+    } else { // left（右轉不進入衝突偵測）
+        const targetBearing = ((arm.bearing - 90) + 360) % 360;
+        const exitIdx = (armIdx != null && arms) ? findExitArm(armIdx, targetBearing, arms) : -1;
+        exitPt = exitIdx >= 0 ? armEndpoints(arms[exitIdx].bearing, r).thruExit : ep.leftExit;
+    }
+    return { p1: ep.entry, p2: exitPt };
 }
 
 // ─── 資料模型工廠 ────────────────────────────────────────────────────────────
@@ -401,6 +420,7 @@ function renderArmsEditor(node) {
             const raw = parseInt(bearingInput.value);
             arm.bearing = isNaN(raw) ? 0 : ((raw % 360) + 360) % 360;
             updateSignals();
+            refreshAllPhasePreviews();
         });
         row.appendChild(bearingInput);
 
@@ -452,6 +472,18 @@ function deleteNode(nodeId) {
     updateTimeSpaceDiagram();
 }
 
+function refreshAllPhasePreviews() {
+    const node = state.nodes.find(n => n.id === editingNodeId);
+    if (!node) return;
+    const arms = node.arms || defaultArms();
+    document.querySelectorAll('.phase-block').forEach((div, idx) => {
+        const phase = node.plan.phases[idx];
+        if (!phase) return;
+        const previewEl = div.querySelector('.phase-preview');
+        if (previewEl) previewEl.innerHTML = buildSignalSVG('green', phase.movements, arms, false, idx);
+    });
+}
+
 function renderPhaseEditor(plan) {
     const container = document.getElementById('phases-container');
     container.innerHTML = '';
@@ -498,6 +530,7 @@ function createPhaseBlock(phase, idx, totalPhases) {
             <thead><tr><th>進向</th><th>直行</th><th>左轉</th><th>右轉</th></tr></thead>
             <tbody></tbody>
         </table>
+        <div class="phase-preview"></div>
         <div class="conflict-warning" style="display:none;"></div>
     `;
 
@@ -511,6 +544,12 @@ function createPhaseBlock(phase, idx, totalPhases) {
             ).join('');
         tbody.appendChild(tr);
     });
+
+    const previewEl = div.querySelector('.phase-preview');
+    function refreshPreview() {
+        previewEl.innerHTML = buildSignalSVG('green', phase.movements, arms, false, idx);
+    }
+    refreshPreview();
 
     div.querySelectorAll('.phase-input').forEach(input => {
         input.addEventListener('input', () => {
@@ -526,6 +565,7 @@ function createPhaseBlock(phase, idx, totalPhases) {
         cb.addEventListener('change', () => {
             syncPhaseFromDOM();
             validateAndShowConflicts();
+            refreshPreview();
         });
     });
 
@@ -723,7 +763,7 @@ function getDetailedPhaseInfo(plan, localTime) {
 
 function updateNodeStatusPanel() {
     const panel = document.getElementById('node-status-panel');
-    if (!simStarted || !selectedNodeId) { panel.style.display = 'none'; return; }
+    if (!selectedNodeId) { panel.style.display = 'none'; return; }
     const node = state.nodes.find(n => n.id === selectedNodeId);
     if (!node) { panel.style.display = 'none'; return; }
 
@@ -818,18 +858,39 @@ function buildSignalSVG(sigState, movements, arms, selected = false, phaseIndex 
         const m = movements[i];
         if (!m) return;
         const ep = armEndpoints(arm.bearing);
+        const si = Math.sin(arm.bearing * Math.PI / 180);
+        const ci = Math.cos(arm.bearing * Math.PI / 180);
+        // 向行進右側偏移，讓對向車道分開
+        const ox = ci * 4, oy = si * 4;
+        const ex = ep.entry.x + ox, ey = ep.entry.y + oy;
 
         if (m.thru) {
-            const arr = svgArrow(ep.thruExit.x, ep.thruExit.y, ep.thruDir.x, ep.thruDir.y);
-            p += `<path d="M ${f(ep.entry.x)},${f(ep.entry.y)} L ${f(ep.thruExit.x)},${f(ep.thruExit.y)} ${arr}" ${strokeAttrs} stroke-width="2.5"/>`;
+            const tx = ep.thruExit.x + ox, ty = ep.thruExit.y + oy;
+            const arr = svgArrow(tx, ty, ep.thruDir.x, ep.thruDir.y);
+            p += `<path d="M ${f(ex)},${f(ey)} L ${f(tx)},${f(ty)} ${arr}" ${strokeAttrs} stroke-width="2.5"/>`;
         }
         if (m.left) {
-            const arr = svgArrow(ep.leftExit.x, ep.leftExit.y, ep.leftDir.x, ep.leftDir.y);
-            p += `<path d="M ${f(ep.entry.x)},${f(ep.entry.y)} Q 20,20 ${f(ep.leftExit.x)},${f(ep.leftExit.y)} ${arr}" ${strokeAttrs} stroke-width="2"/>`;
+            const exitIdx = findExitArm(i, ((arm.bearing - 90) + 360) % 360, arms);
+            const eep = exitIdx >= 0 ? armEndpoints(arms[exitIdx].bearing) : ep;
+            const exitPt = exitIdx >= 0 ? eep.thruExit : ep.leftExit;
+            const exitDir = exitIdx >= 0 ? eep.thruDir : ep.leftDir;
+            const arr = svgArrow(exitPt.x, exitPt.y, exitDir.x, exitDir.y);
+            p += `<path d="M ${f(ex)},${f(ey)} Q 20,20 ${f(exitPt.x)},${f(exitPt.y)} ${arr}" ${strokeAttrs} stroke-width="2"/>`;
         }
         if (m.right) {
-            const arr = svgArrow(ep.rightExit.x, ep.rightExit.y, ep.rightDir.x, ep.rightDir.y);
-            p += `<path d="M ${f(ep.entry.x)},${f(ep.entry.y)} Q 20,20 ${f(ep.rightExit.x)},${f(ep.rightExit.y)} ${arr}" ${strokeAttrs} stroke-width="2"/>`;
+            const exitIdx = findExitArm(i, (arm.bearing + 90) % 360, arms);
+            const exitBearing = exitIdx >= 0 ? arms[exitIdx].bearing : (arm.bearing + 90) % 360;
+            const eep = exitIdx >= 0 ? armEndpoints(exitBearing) : ep;
+            const exitPt = exitIdx >= 0 ? eep.thruExit : ep.rightExit;
+            const exitDir = exitIdx >= 0 ? eep.thruDir : ep.rightDir;
+            // 三次貝茲：沿進臂切線出發，沿出臂切線抵達，形成緊角弧（不穿越圓心）
+            const t = 7;
+            const sk = Math.sin(exitBearing * Math.PI / 180);
+            const ck = Math.cos(exitBearing * Math.PI / 180);
+            const cp1x = ex + t * si, cp1y = ey - t * ci;
+            const cp2x = exitPt.x - t * sk, cp2y = exitPt.y + t * ck;
+            const arr = svgArrow(exitPt.x, exitPt.y, exitDir.x, exitDir.y);
+            p += `<path d="M ${f(ex)},${f(ey)} C ${f(cp1x)},${f(cp1y)} ${f(cp2x)},${f(cp2y)} ${f(exitPt.x)},${f(exitPt.y)} ${arr}" ${strokeAttrs} stroke-width="2"/>`;
         }
     });
 
@@ -1556,6 +1617,12 @@ function buildCardPhaseBlock(phase, idx, node, card) {
     }
 
     // 動線（n-arm）
+    const previewEl = document.createElement('div');
+    previewEl.className = 'anc-phase-preview';
+    function refreshPreview() {
+        previewEl.innerHTML = buildSignalSVG('green', phase.movements, arms, false, idx);
+    }
+
     const movDiv = document.createElement('div');
     movDiv.className = 'anc-movements';
     arms.forEach((arm, i) => {
@@ -1577,6 +1644,7 @@ function buildCardPhaseBlock(phase, idx, node, card) {
                 phase.movements[i][turn] = cb.checked;
                 validateCardConflicts(div, phase, node.arms);
                 updateSignals();
+                refreshPreview();
             });
             lbl.appendChild(cb);
             lbl.appendChild(document.createTextNode(label));
@@ -1585,6 +1653,9 @@ function buildCardPhaseBlock(phase, idx, node, card) {
         movDiv.appendChild(group);
     });
     div.appendChild(movDiv);
+
+    refreshPreview();
+    div.appendChild(previewEl);
 
     const warnDiv = document.createElement('div');
     warnDiv.className = 'anc-conflict-warn';

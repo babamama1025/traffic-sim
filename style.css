@@ -44,6 +44,10 @@ button.active { background: #007bff; color: white; border-color: #0056b3; }
 .movement-table th { background: #dce6f5; font-weight: bold; }
 .movement-table td:first-child { text-align: left; padding-left: 6px; font-weight: bold; background: #eef2fb; }
 
+/* 時相 SVG 預覽 */
+.phase-preview { display: flex; justify-content: center; padding: 6px 0 2px; }
+.phase-preview svg { width: 72px; height: 72px; }
+
 /* 衝突警告 */
 .conflict-warning { background: #fff0f0; border: 1px solid #f5c6cb; border-radius: 4px; padding: 5px 8px; margin-top: 6px; }
 
@@ -110,6 +114,8 @@ button.active { background: #007bff; color: white; border-color: #0056b3; }
 .anc-mov-approach { font-weight: bold; color: #495057; min-width: 22px; }
 .anc-mov-label { display: flex; align-items: center; gap: 2px; cursor: pointer; white-space: nowrap; }
 .anc-mov-label input { margin: 0; cursor: pointer; }
+.anc-phase-preview { display: flex; justify-content: center; padding: 4px 0 2px; }
+.anc-phase-preview svg { width: 64px; height: 64px; }
 .anc-conflict-warn { background: #fff0f0; border: 1px solid #f5c6cb; border-radius: 3px; padding: 4px 8px; margin-top: 5px; font-size: 11px; }
 .anc-add-phase { margin-top: 10px; font-size: 12px; padding: 4px 12px; background: #6c757d; color: #fff; border-color: #545b62; }
 .anc-add-phase:hover { background: #545b62; }
