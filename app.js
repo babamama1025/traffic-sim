@@ -1,6 +1,9 @@
 // 初始化地圖
 const map = L.map('map').setView([24.960, 121.225], 14);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19,
+  attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+}).addTo(map);
 
 // 系統核心狀態
 let state = { nodes: [], links: [] };
@@ -177,9 +180,14 @@ function detectConflicts(arms, movements) {
         if (m.left) list.push({ arm, i, type: 'left', label: `${arm.label} 左轉` });
     });
     const out = [];
+    const OPPOSING_TOL = 10; // 度，方位角相差 180°±此值視為對向直行，不算衝突
     for (let a = 0; a < list.length; a++)
         for (let b = a + 1; b < list.length; b++) {
             if (list[a].i === list[b].i) continue;
+            if (list[a].type === 'thru' && list[b].type === 'thru') {
+                const diff = Math.abs(((list[a].arm.bearing - list[b].arm.bearing + 540) % 360) - 180);
+                if (diff <= OPPOSING_TOL) continue;
+            }
             const sa = getMovementSegment(list[a].arm, list[a].type, list[a].i, arms);
             const sb = getMovementSegment(list[b].arm, list[b].type, list[b].i, arms);
             if (segmentsIntersect(sa.p1, sa.p2, sb.p1, sb.p2))
@@ -751,7 +759,7 @@ function getDetailedPhaseInfo(plan, localTime) {
                      elapsed: Math.floor(e), remaining: phase.yellow - Math.floor(e) };
         } else if (localTime < elapsed + phaseDur) {
             const e = localTime - elapsed - phase.green - phase.yellow;
-            return { phaseIndex: i, sigState: 'allRed', movements: null,
+            return { phaseIndex: i, sigState: 'allRed', movements: phase.movements,
                      elapsed: Math.floor(e), remaining: phase.allRed - Math.floor(e) };
         }
         elapsed += phaseDur;
@@ -775,7 +783,7 @@ function updateNodeStatusPanel() {
     const stateLabels = { green: '🟢 綠燈', yellow: '🟡 黃燈', allRed: '🔴 全紅' };
     const phaseLabel = info.phaseIndex >= 0 ? `第 ${info.phaseIndex + 1} 時相` : '全紅（未分配）';
     const arms = node.arms || defaultArms();
-    const movList = (info.movements && Array.isArray(info.movements))
+    const movList = (info.sigState !== 'allRed' && info.movements && Array.isArray(info.movements))
         ? info.movements.flatMap((m, i) => {
             const lbl = arms[i] ? arms[i].label : `臂${i + 1}`;
             const parts = [];
@@ -839,8 +847,8 @@ function buildSignalSVG(sigState, movements, arms, selected = false, phaseIndex 
           `<text x="32.5" y="7.5" font-size="11" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle" font-family="monospace">${phaseIndex + 1}</text>`
         : '';
 
-    if (sigState === 'allRed' || !movements || !arms) {
-        // 全紅：先畫道路線段（從各臂穿越中心），再疊紅圈，露出路口形狀
+    if (!movements || !arms) {
+        // 無對應時相（如週期未分配時間）：先畫道路線段，再疊紅圈，露出路口形狀
         const armLines = (arms || defaultArms()).map(arm => {
             const ep = armEndpoints(arm.bearing, 18);
             return `<line x1="${f(ep.entry.x)}" y1="${f(ep.entry.y)}" x2="${f(ep.thruExit.x)}" y2="${f(ep.thruExit.y)}" stroke="#888" stroke-width="4" stroke-linecap="round"/>`;
@@ -848,8 +856,8 @@ function buildSignalSVG(sigState, movements, arms, selected = false, phaseIndex 
         return `<svg width="40" height="40" viewBox="0 0 40 40">${armLines}<circle cx="20" cy="20" r="14" fill="#dc3545"/>${selRing}${phaseTag}</svg>`;
     }
 
-    const clr = sigState === 'yellow' ? '#ffc107' : '#28a745';
-    const bg  = sigState === 'yellow' ? '#fffbe6' : 'white';
+    const clr = sigState === 'yellow' ? '#ffc107' : sigState === 'allRed' ? '#dc3545' : '#28a745';
+    const bg  = sigState === 'yellow' ? '#fffbe6' : sigState === 'allRed' ? '#fdecea' : 'white';
     const strokeAttrs = `stroke="${clr}" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
 
     let p = `<circle cx="20" cy="20" r="16" fill="none" stroke="${clr}" stroke-width="2.5"/>`;
@@ -1069,19 +1077,23 @@ function getGreenIntervals(plan, selectedPhases, searchMin, searchMax) {
     if (!plan || !plan.phases || plan.cycle <= 0 || !selectedPhases.length) return [];
     const intervals = [];
     const cycle = plan.cycle;
+    const lastSelected = Math.max(...selectedPhases);
     // 從 searchMin 的前一個週期開始，確保不遺漏橫跨邊界的區間
     let base = Math.floor((searchMin - plan.offset) / cycle) * cycle + plan.offset - cycle;
     while (base <= searchMax) {
         let elapsed = 0;
         for (let i = 0; i < plan.phases.length; i++) {
             const ph = plan.phases[i];
-            if (selectedPhases.includes(i) && ph.green > 0) {
+            const duration = ph.green + ph.yellow + ph.allRed;
+            if (selectedPhases.includes(i)) {
+                // 與 getPhaseColorForDisplay 一致：非最後一個被選時相的黃燈/全紅
+                // （通常是留給左轉早開等次要動作的清空時間）對幹道仍視為綠燈
                 const gStart = base + elapsed;
-                const gEnd   = gStart + ph.green;
-                if (gEnd > searchMin && gStart < searchMax)
+                const gEnd   = gStart + (i === lastSelected ? ph.green : duration);
+                if (gEnd > gStart && gEnd > searchMin && gStart < searchMax)
                     intervals.push({ start: gStart, end: gEnd });
             }
-            elapsed += ph.green + ph.yellow + ph.allRed;
+            elapsed += duration;
         }
         base += cycle;
     }
@@ -1726,52 +1738,63 @@ map.on('popupclose', (e) => {
     }
 });
 
+function loadProjectData(data) {
+    Object.values(markers).forEach(m => map.removeLayer(m));
+    markers = {};
+    lastIconState = {};
+    polylines.forEach(p => map.removeLayer(p));
+    polylines = [];
+    state = data;
+    // 自動升級舊格式
+    state.nodes.forEach(node => {
+        // 1. 建立 arms（若尚未有）
+        if (!node.arms) {
+            const b = node.bearing || 0;
+            node.arms = [
+                { bearing: (90  + b) % 360, label: 'EB' },
+                { bearing: (270 + b) % 360, label: 'WB' },
+                { bearing: (0   + b) % 360, label: 'NB' },
+                { bearing: (180 + b) % 360, label: 'SB' },
+            ];
+        }
+        const numArms = node.arms.length;
+        // 2. 升級 plan（最舊格式）
+        if (!node.plan.phases) {
+            node.plan = migratePlan(node.plan, numArms);
+        } else {
+            // 3. 升級各時相 movements（舊物件格式 → 新陣列格式）
+            node.plan.phases.forEach(ph => {
+                if (!Array.isArray(ph.movements))
+                    ph.movements = migrateMovements(ph.movements, numArms);
+            });
+        }
+        drawNode(node);
+    });
+    renderLinks();
+    if (state.nodes.length > 0) {
+        const latlngs = state.nodes.map(n => [n.lat, n.lng]);
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [60, 60] });
+    }
+    updateSignals();
+    tsdPhaseSelection = {};
+    rebuildTsdControls();
+    updateTimeSpaceDiagram();
+    if (allNodesOverlay.classList.contains('open')) buildAllNodesPanel();
+}
+
 document.getElementById('file-load').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function(event) {
-        Object.values(markers).forEach(m => map.removeLayer(m));
-        markers = {};
-        lastIconState = {};
-        polylines.forEach(p => map.removeLayer(p));
-        polylines = [];
-        state = JSON.parse(event.target.result);
-        // 自動升級舊格式
-        state.nodes.forEach(node => {
-            // 1. 建立 arms（若尚未有）
-            if (!node.arms) {
-                const b = node.bearing || 0;
-                node.arms = [
-                    { bearing: (90  + b) % 360, label: 'EB' },
-                    { bearing: (270 + b) % 360, label: 'WB' },
-                    { bearing: (0   + b) % 360, label: 'NB' },
-                    { bearing: (180 + b) % 360, label: 'SB' },
-                ];
-            }
-            const numArms = node.arms.length;
-            // 2. 升級 plan（最舊格式）
-            if (!node.plan.phases) {
-                node.plan = migratePlan(node.plan, numArms);
-            } else {
-                // 3. 升級各時相 movements（舊物件格式 → 新陣列格式）
-                node.plan.phases.forEach(ph => {
-                    if (!Array.isArray(ph.movements))
-                        ph.movements = migrateMovements(ph.movements, numArms);
-                });
-            }
-            drawNode(node);
-        });
-        renderLinks();
-        if (state.nodes.length > 0) {
-            const latlngs = state.nodes.map(n => [n.lat, n.lng]);
-            map.fitBounds(L.latLngBounds(latlngs), { padding: [60, 60] });
-        }
-        updateSignals();
-        tsdPhaseSelection = {};
-        rebuildTsdControls();
-        updateTimeSpaceDiagram();
-        if (allNodesOverlay.classList.contains('open')) buildAllNodesPanel();
+        loadProjectData(JSON.parse(event.target.result));
     };
     reader.readAsText(file);
 });
+
+// 預設載入桃園示範專案（以 http(s) 伺服器開啟時才會成功；直接雙擊開啟 index.html 時
+// 瀏覽器會擋 fetch 本機檔案，此時維持空專案，不影響其他功能）
+fetch('TY/traffic_project.json')
+    .then(res => res.ok ? res.json() : Promise.reject())
+    .then(data => loadProjectData(data))
+    .catch(() => {});
