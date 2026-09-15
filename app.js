@@ -1128,6 +1128,13 @@ function computeGreenBands(gbNodes, travelTimes, searchMin, searchMax) {
         feasible = intersectIntervals(feasible, shifted);
         if (!feasible.length) break;
     }
+    // 合併首尾相接（例如左轉早開＋幹道對開被拆成兩段）的區間，避免多畫出一條分割線
+    feasible = feasible.reduce((merged, iv) => {
+        const last = merged[merged.length - 1];
+        if (last && iv.start <= last.end + 0.01) last.end = Math.max(last.end, iv.end);
+        else merged.push({ ...iv });
+        return merged;
+    }, []);
     return feasible.map(iv => ({ start: iv.start, end: iv.end, bw: iv.end - iv.start }));
 }
 
