@@ -33,6 +33,10 @@
                     <span>模擬速度 <strong id="speed-display">1x</strong></span>
                     <input type="range" id="select-speed" min="1" max="32" value="1" step="1">
                 </div>
+                <div class="timeline-row">
+                    <input type="range" id="sim-timeline" min="0" max="0" value="0" step="1">
+                    <span id="timeline-label">0 / 0 秒</span>
+                </div>
             </div>
 
             <div class="control-group">
@@ -104,16 +108,26 @@
                     <button id="btn-close-tsd">✕ 關閉</button>
                 </div>
             </div>
-            <span class="tsd-hint">路口依實際地理距離等比例排列（由西向東），縱軸間距反映真實距離，綠/黃/紅帶對應各路口號誌狀態</span>
-            <div class="tsd-controls-header">點選數字以選擇納入綠寬的時相（可複選）</div>
+            <span class="tsd-hint">路口依實際地理距離等比例排列，縱軸間距反映真實距離，綠/黃/紅帶對應各路口號誌狀態</span>
+            <div class="tsd-controls-header">
+                <label>排序方向
+                    <select id="tsd-sort-mode">
+                        <option value="WE">西 → 東</option>
+                        <option value="EW">東 → 西</option>
+                        <option value="SN">南 → 北</option>
+                        <option value="NS">北 → 南</option>
+                    </select>
+                </label>
+                點選數字以選擇納入綠寬的時相（可複選）
+            </div>
             <div id="tsd-controls"></div>
             <div id="gb-bar">
                 <button id="btn-gb-toggle">🟢 繪製綠寬帶</button>
                 <div id="gb-settings" hidden>
                     <label>方向
                         <select id="gb-dir">
-                            <option value="EB">→ EB（由西向東）</option>
-                            <option value="WB">← WB（由東向西）</option>
+                            <option value="FWD">→ 順排序方向</option>
+                            <option value="REV">← 逆排序方向</option>
                         </select>
                     </label>
                     <label>速率 <input id="gb-speed-input" type="number" value="40" min="1" max="200"> km/h</label>

@@ -17,17 +17,27 @@ let polylines = [];
 let lastIconState = {}; // { [nodeId]: stateKey } — 避免無謂的 setIcon DOM 替換
 let tsdPhaseSelection = {}; // { [nodeId]: number[] } — 時空圖各路口顯示時相（可多選）
 let tsdTimeOffset = 0;      // 時空圖時間偏移（秒）；0 = 跟隨模擬，負值 = 回顧過去（最多 -600）
+let tsdSortMode   = 'WE';        // 時空圖路口排序：'WE' 西→東 | 'EW' 東→西 | 'SN' 南→北 | 'NS' 北→南
 let gbEnabled     = false;
 let gbSpeed       = 40;          // 設計速率 (km/h)
-let gbDirection   = 'EB';        // 'EB' 由西向東 | 'WB' 由東向西
+let gbDirection   = 'FWD';       // 'FWD' 順排序方向 | 'REV' 逆排序方向
 let gbSelectedIds = null;        // null = 全選；Set<id> 表示已選路口
 
 // 模擬與時間變數
 let simulationTime = 0;
+let simMaxTime = 0;      // 已模擬到的最遠時間（時間軸可回溯的上限）
 let simInterval = null;
 let simSpeed = 1;
 let simStarted = false; // true after play pressed, false after reset
 const clockEl = document.getElementById('clock');
+const simTimeline = document.getElementById('sim-timeline');
+const timelineLabel = document.getElementById('timeline-label');
+
+function updateTimelineUI() {
+    simTimeline.max = simMaxTime;
+    simTimeline.value = simulationTime;
+    timelineLabel.textContent = `${simulationTime} / ${simMaxTime} 秒`;
+}
 
 // 時空圖 Canvas
 const canvas = document.getElementById('ts-canvas');
@@ -961,6 +971,11 @@ document.getElementById('gb-dir').addEventListener('change', e => {
     gbDirection = e.target.value;
     updateTimeSpaceDiagram();
 });
+document.getElementById('tsd-sort-mode').addEventListener('change', e => {
+    tsdSortMode = e.target.value;
+    rebuildTsdControls();
+    updateTimeSpaceDiagram();
+});
 document.getElementById('gb-speed-input').addEventListener('input', e => {
     const v = parseFloat(e.target.value);
     if (v > 0) { gbSpeed = v; updateTimeSpaceDiagram(); }
@@ -973,19 +988,22 @@ btnPlay.onclick = tsdBtnPlay.onclick = () => {
     document.getElementById('editor-panel').style.display = 'none';
 };
 
-btnPause.onclick = tsdBtnPause.onclick = () => {
+function pauseSim() {
     stopTimer();
     syncSimButtons('btn-inactive', 'btn-pause-active');
     if (editingNodeId) {
         const node = state.nodes.find(n => n.id === editingNodeId);
         if (node) openEditor(node);
     }
-};
+}
+
+btnPause.onclick = tsdBtnPause.onclick = pauseSim;
 
 document.getElementById('btn-reset').onclick = () => {
     stopTimer();
     simStarted = false;
     simulationTime = 0;
+    simMaxTime = 0;
     clockEl.innerText = 0;
     syncSimButtons('btn-inactive', 'btn-inactive');
     document.getElementById('node-status-panel').style.display = 'none';
@@ -995,15 +1013,18 @@ document.getElementById('btn-reset').onclick = () => {
     }
     updateSignals();
     updateTimeSpaceDiagram();
+    updateTimelineUI();
 };
 
 function startTimer() {
     if (simInterval) return;
     simInterval = setInterval(() => {
         simulationTime += 1;
+        if (simulationTime > simMaxTime) simMaxTime = simulationTime;
         clockEl.innerText = simulationTime;
         updateSignals();
         updateTimeSpaceDiagram();
+        updateTimelineUI();
     }, 1000 / simSpeed);
 }
 
@@ -1012,12 +1033,25 @@ function stopTimer() {
     simInterval = null;
 }
 
+// ─── 時間軸拖曳（時光倒轉）───────────────────────────────────────────────────
+
+simTimeline.addEventListener('pointerdown', () => {
+    if (simInterval) pauseSim();
+});
+simTimeline.addEventListener('input', () => {
+    simulationTime = parseInt(simTimeline.value) || 0;
+    clockEl.innerText = simulationTime;
+    updateSignals();
+    updateTimeSpaceDiagram();
+    timelineLabel.textContent = `${simulationTime} / ${simMaxTime} 秒`;
+});
+
 // ─── 時空圖繪製（含黃燈色帶）────────────────────────────────────────────────
 
 function rebuildTsdControls() {
     if (!tsdOverlay.classList.contains('open')) return;
     const container = document.getElementById('tsd-controls');
-    const sortedNodes = [...state.nodes].sort((a, b) => a.lng - b.lng);
+    const sortedNodes = getSortedNodes();
     container.innerHTML = '';
     sortedNodes.forEach(node => {
         const numPhases = node.plan.phases.length;
@@ -1064,12 +1098,12 @@ function rebuildTsdControls() {
 
 // ─── 幹道綠寬帶 ─────────────────────────────────────────────────────────────
 
-// 依方向與使用者選擇，回傳有序路口陣列（EB 由西向東；WB 由東向西）
+// 依方向與使用者選擇，回傳有序路口陣列（FWD 沿排序方向；REV 逆排序方向）
 function gbGetOrderedNodes(sortedNodes) {
     const base = (gbSelectedIds === null || gbSelectedIds.size === 0)
         ? sortedNodes
         : sortedNodes.filter(n => gbSelectedIds.has(n.id));
-    return gbDirection === 'WB' ? [...base].reverse() : base;
+    return gbDirection === 'REV' ? [...base].reverse() : base;
 }
 
 // 回傳 plan 在 [searchMin, searchMax] 內的純綠燈區間（絕對時間）
@@ -1206,7 +1240,7 @@ function rebuildGbNodeChips() {
     const container = document.getElementById('gb-node-chips');
     if (!container) return;
     container.innerHTML = '';
-    const sortedNodes = [...state.nodes].sort((a, b) => a.lng - b.lng);
+    const sortedNodes = getSortedNodes();
     if (gbSelectedIds === null) {
         gbSelectedIds = new Set(sortedNodes.map(n => n.id));
     } else {
@@ -1236,6 +1270,13 @@ function rebuildGbNodeChips() {
     });
 }
 
+// 依 tsdSortMode 回傳排序後的路口陣列
+function getSortedNodes() {
+    const axis = (tsdSortMode === 'SN' || tsdSortMode === 'NS') ? 'lat' : 'lng';
+    const asc = (tsdSortMode === 'WE' || tsdSortMode === 'SN');
+    return [...state.nodes].sort((a, b) => asc ? a[axis] - b[axis] : b[axis] - a[axis]);
+}
+
 function haversineM(n1, n2) {
     const R = 6371000;
     const φ1 = n1.lat * Math.PI / 180, φ2 = n2.lat * Math.PI / 180;
@@ -1250,7 +1291,7 @@ function updateTimeSpaceDiagram() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (state.nodes.length === 0) return;
 
-    const sortedNodes = [...state.nodes].sort((a, b) => a.lng - b.lng);
+    const sortedNodes = getSortedNodes();
     const numNodes = sortedNodes.length;
 
     // 累積地理距離（公尺），用於縱軸比例定位
@@ -1269,7 +1310,7 @@ function updateTimeSpaceDiagram() {
 
     // 虛擬高度：路口數多時擴展，確保最小間距 50px；頂底各留 margin
     const MIN_SPACING = 50;
-    const nodeTopMargin = 10, nodeBottomMargin = 30;
+    const nodeTopMargin = 18, nodeBottomMargin = 30;
     const virtualDrawH = Math.max(drawH,
         numNodes <= 1 ? drawH : (numNodes - 1) * MIN_SPACING + nodeTopMargin + nodeBottomMargin);
     tsdScrollInner.style.height = (virtualDrawH + padT + padB) + 'px';

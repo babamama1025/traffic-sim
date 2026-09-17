@@ -22,6 +22,11 @@ button.active { background: #007bff; color: white; border-color: #0056b3; }
 .speed-row span { white-space: nowrap; font-size: 13px; min-width: 62px; }
 .speed-row input[type="range"] { flex: 1; cursor: pointer; accent-color: #007bff; }
 
+/* 時間軸 slider（時光倒轉） */
+.timeline-row { width: 100%; display: flex; align-items: center; gap: 8px; padding-top: 2px; }
+.timeline-row span { white-space: nowrap; font-size: 13px; min-width: 62px; }
+.timeline-row input[type="range"] { flex: 1; cursor: pointer; accent-color: #6f42c1; }
+
 #time-display { position: absolute; top: 10px; left: 50px; z-index: 1000; background: rgba(255,255,255,0.9); padding: 8px 15px; font-size: 16px; font-weight: bold; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
 .form-group { margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
 .form-group input { width: 80px; padding: 4px; }
@@ -129,7 +134,9 @@ button.active { background: #007bff; color: white; border-color: #0056b3; }
 .tsd-header h3 { margin: 0; font-size: 15px; }
 .tsd-hint { font-size: 11px; color: #888; }
 #tsd-controls { display: flex; flex-wrap: wrap; gap: 4px 14px; min-height: 22px; }
-.tsd-controls-header { font-size: 11px; color: #888; margin: 2px 0 4px; }
+.tsd-controls-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: #888; margin: 2px 0 4px; }
+.tsd-controls-header label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.tsd-controls-header select { font-size: 11px; border: 1px solid #bbb; border-radius: 3px; padding: 1px 3px; }
 .tsd-phase-sel { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #444; }
 .tsd-phase-sel span { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tsd-phase-toggle { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; font-size: 11px; font-weight: bold; border: 1.5px solid #bbb; border-radius: 4px; background: #f0f0f0; color: #888; cursor: pointer; user-select: none; transition: background 0.12s, color 0.12s, border-color 0.12s; padding: 0; }
