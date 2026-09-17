@@ -21,7 +21,7 @@ let tsdSortMode   = 'WE';        // 時空圖路口排序：'WE' 西→東 | 'EW
 let gbEnabled     = false;
 let gbSpeed       = 40;          // 設計速率 (km/h)
 let gbDirection   = 'FWD';       // 'FWD' 順排序方向 | 'REV' 逆排序方向
-let gbSelectedIds = null;        // null = 全選；Set<id> 表示已選路口
+let tsdHiddenIds  = new Set();   // 使用者手動從時空圖隱藏的路口 id
 
 // 模擬與時間變數
 let simulationTime = 0;
@@ -959,7 +959,6 @@ document.getElementById('btn-gb-toggle').addEventListener('click', () => {
         btn.classList.add('active');
         btn.textContent = '🟢 綠寬帶（開）';
         settings.hidden = false;
-        rebuildGbNodeChips();
     } else {
         btn.classList.remove('active');
         btn.textContent = '🟢 繪製綠寬帶';
@@ -1050,8 +1049,9 @@ simTimeline.addEventListener('input', () => {
 
 function rebuildTsdControls() {
     if (!tsdOverlay.classList.contains('open')) return;
+    rebuildNodeFilterChips();
     const container = document.getElementById('tsd-controls');
-    const sortedNodes = getSortedNodes();
+    const sortedNodes = getVisibleNodes();
     container.innerHTML = '';
     sortedNodes.forEach(node => {
         const numPhases = node.plan.phases.length;
@@ -1093,17 +1093,13 @@ function rebuildTsdControls() {
 
         container.appendChild(row);
     });
-    if (gbEnabled) rebuildGbNodeChips();
 }
 
 // ─── 幹道綠寬帶 ─────────────────────────────────────────────────────────────
 
-// 依方向與使用者選擇，回傳有序路口陣列（FWD 沿排序方向；REV 逆排序方向）
+// 依方向回傳有序路口陣列（FWD 沿排序方向；REV 逆排序方向）
 function gbGetOrderedNodes(sortedNodes) {
-    const base = (gbSelectedIds === null || gbSelectedIds.size === 0)
-        ? sortedNodes
-        : sortedNodes.filter(n => gbSelectedIds.has(n.id));
-    return gbDirection === 'REV' ? [...base].reverse() : base;
+    return gbDirection === 'REV' ? [...sortedNodes].reverse() : sortedNodes;
 }
 
 // 回傳 plan 在 [searchMin, searchMax] 內的純綠燈區間（絕對時間）
@@ -1235,46 +1231,46 @@ function drawGreenBands(sortedNodes, yPositions, padL, drawW, padT, minTime, max
     ctx.restore();
 }
 
-// 重建路口選擇晶片
-function rebuildGbNodeChips() {
-    const container = document.getElementById('gb-node-chips');
+// 重建「顯示路口」篩選晶片 —— 決定哪些路口要出現在時空圖中（含綠寬帶）
+function rebuildNodeFilterChips() {
+    const container = document.getElementById('tsd-node-chips');
     if (!container) return;
     container.innerHTML = '';
     const sortedNodes = getSortedNodes();
-    if (gbSelectedIds === null) {
-        gbSelectedIds = new Set(sortedNodes.map(n => n.id));
-    } else {
-        // 清除已消失的路口，補入新路口
-        const valid = new Set(sortedNodes.map(n => n.id));
-        gbSelectedIds.forEach(id => { if (!valid.has(id)) gbSelectedIds.delete(id); });
-        sortedNodes.forEach(n => gbSelectedIds.add(n.id));
-    }
+    // 清除已消失路口的隱藏紀錄（新路口預設顯示，不需特別處理）
+    const valid = new Set(sortedNodes.map(n => n.id));
+    tsdHiddenIds.forEach(id => { if (!valid.has(id)) tsdHiddenIds.delete(id); });
+
     sortedNodes.forEach(node => {
         const btn = document.createElement('button');
-        btn.className = 'tsd-phase-toggle gb-chip' + (gbSelectedIds.has(node.id) ? ' active' : '');
+        btn.className = 'tsd-phase-toggle node-chip' + (tsdHiddenIds.has(node.id) ? '' : ' active');
         btn.textContent = node.name || node.id;
         btn.title = node.name || node.id;
         btn.addEventListener('click', () => {
-            const active = [...gbSelectedIds].filter(id => sortedNodes.some(n => n.id === id));
-            if (gbSelectedIds.has(node.id)) {
-                if (active.length <= 2) return;
-                gbSelectedIds.delete(node.id);
-                btn.classList.remove('active');
+            const visibleCount = sortedNodes.filter(n => !tsdHiddenIds.has(n.id)).length;
+            if (tsdHiddenIds.has(node.id)) {
+                tsdHiddenIds.delete(node.id);
             } else {
-                gbSelectedIds.add(node.id);
-                btn.classList.add('active');
+                if (visibleCount <= 1) return;
+                tsdHiddenIds.add(node.id);
             }
+            rebuildTsdControls();
             updateTimeSpaceDiagram();
         });
         container.appendChild(btn);
     });
 }
 
-// 依 tsdSortMode 回傳排序後的路口陣列
+// 依 tsdSortMode 回傳排序後的路口陣列（全部路口）
 function getSortedNodes() {
     const axis = (tsdSortMode === 'SN' || tsdSortMode === 'NS') ? 'lat' : 'lng';
     const asc = (tsdSortMode === 'WE' || tsdSortMode === 'SN');
     return [...state.nodes].sort((a, b) => asc ? a[axis] - b[axis] : b[axis] - a[axis]);
+}
+
+// 依 tsdHiddenIds 篩選出要顯示於時空圖的路口
+function getVisibleNodes() {
+    return getSortedNodes().filter(n => !tsdHiddenIds.has(n.id));
 }
 
 function haversineM(n1, n2) {
@@ -1291,7 +1287,7 @@ function updateTimeSpaceDiagram() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (state.nodes.length === 0) return;
 
-    const sortedNodes = getSortedNodes();
+    const sortedNodes = getVisibleNodes();
     const numNodes = sortedNodes.length;
 
     // 累積地理距離（公尺），用於縱軸比例定位

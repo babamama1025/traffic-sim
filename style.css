@@ -147,9 +147,10 @@ button.active { background: #007bff; color: white; border-color: #0056b3; }
 #gb-settings label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 #gb-settings input[type="number"] { width: 50px; font-size: 12px; border: 1px solid #bbb; border-radius: 3px; padding: 1px 3px; }
 #gb-settings select { font-size: 12px; border: 1px solid #bbb; border-radius: 3px; padding: 1px 3px; }
-#gb-node-chips { display: flex; flex-wrap: wrap; gap: 3px; }
-.gb-chips-label { font-size: 11px; color: #888; white-space: nowrap; }
-.gb-chip { width: auto !important; padding: 0 7px !important; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px !important; height: 22px !important; }
+#tsd-node-filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
+#tsd-node-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.node-chips-label { font-size: 11px; color: #888; white-space: nowrap; }
+.node-chip { width: auto !important; padding: 0 7px !important; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px !important; height: 22px !important; }
 #btn-gb-toggle { font-size: 12px; padding: 3px 10px; border: 1px solid #ccc; border-radius: 4px; background: #f8f9fa; cursor: pointer; white-space: nowrap; }
 #btn-gb-toggle:hover { background: #e9ecef; }
 #btn-gb-toggle.active { background: #fd7e14; color: #fff; border-color: #e8680a; font-weight: bold; }
