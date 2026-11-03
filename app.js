@@ -329,6 +329,8 @@ function drawNode(nodeData) {
         const { lat, lng } = marker.getLatLng();
         nodeData.lat = lat;
         nodeData.lng = lng;
+        lastFlowKey = {}; // 位置改變影響自身與鄰近路口的臂長
+        updateSignals();
         renderLinks();
         updateTimeSpaceDiagram();
     });
@@ -479,6 +481,7 @@ function renderArmsEditor(node) {
 function deleteNode(nodeId) {
     if (markers[nodeId]) { map.removeLayer(markers[nodeId]); delete markers[nodeId]; }
     delete lastIconState[nodeId];
+    clearNodeFlow(nodeId);
     state.nodes = state.nodes.filter(n => n.id !== nodeId);
     state.links = state.links.filter(l => l.from !== nodeId && l.to !== nodeId);
     editingNodeId = null;
@@ -844,6 +847,7 @@ function updateSignals() {
                 iconSize: [44, 44],
             }));
         }
+        updateNodeFlow(node, sigState, movements, `${sigState}|${movKey}|${armsKey}|${node.lat},${node.lng}`);
     });
     updateNodeStatusPanel();
 }
@@ -914,6 +918,129 @@ function buildSignalSVG(sigState, movements, arms, selected = false, phaseIndex 
 
     return `<svg width="40" height="40" viewBox="0 0 40 40" style="background:${bg}; border-radius:50%;">${p}${selRing}${phaseTag}</svg>`;
 }
+
+// ─── 車流動線動畫圖層 ────────────────────────────────────────────────────────
+// 在地圖上以像素尺寸繪製各路口當前放行動線：寬色帶 + 流動虛線 + 出口箭頭
+// 放在路段之上、路口圖示之下；路口中心被圖示遮住，露出進入與離開兩段
+
+map.createPane('flowPane');
+map.getPane('flowPane').style.zIndex = 450;
+map.getPane('flowPane').style.pointerEvents = 'none';
+const flowRenderer = L.svg({ pane: 'flowPane', padding: 0.5 });
+let flowEnabled = true;
+let flowLayers = {};   // { [nodeId]: L.LayerGroup }
+let lastFlowKey = {};  // { [nodeId]: key } — 狀態未變則不重繪
+
+const FLOW_INNER = 12;     // 動線在路口內的起訖半徑（px）
+const FLOW_LANE_OFF = 8;   // 靠右偏移（px），分開對向車流
+const FLOW_MIN_LEN = 34;   // 臂長小於此值（圖示外露太少）則不顯示
+
+// 臂長（px）：隨縮放變化，且不超過與最近路口距離的一半，避免互相重疊
+function flowArmLength(node) {
+    const p = map.latLngToLayerPoint([node.lat, node.lng]);
+    let nearest = Infinity;
+    state.nodes.forEach(o => {
+        if (o.id === node.id) return;
+        const d = p.distanceTo(map.latLngToLayerPoint([o.lat, o.lng]));
+        if (d < nearest) nearest = d;
+    });
+    return Math.min(90, nearest * 0.5);
+}
+
+// 回傳各放行動線的像素路徑（相對路口中心，y 向下）
+function buildFlowPaths(arms, movements, len) {
+    const dir = b => { const r = b * Math.PI / 180; return { x: Math.sin(r), y: -Math.cos(r) }; };
+    const paths = [];
+    arms.forEach((arm, i) => {
+        const m = movements[i];
+        if (!m) return;
+        const d = dir(arm.bearing);
+        const n = { x: -d.y, y: d.x };  // 行進方向右側
+        const start = { x: -d.x * len + n.x * FLOW_LANE_OFF, y: -d.y * len + n.y * FLOW_LANE_OFF };
+        const p1 = { x: -d.x * FLOW_INNER + n.x * FLOW_LANE_OFF, y: -d.y * FLOW_INNER + n.y * FLOW_LANE_OFF };
+        const add = (exitBearing) => {
+            const e = dir(exitBearing);
+            const ne = { x: -e.y, y: e.x };
+            const p2 = { x: e.x * FLOW_INNER + ne.x * FLOW_LANE_OFF, y: e.y * FLOW_INNER + ne.y * FLOW_LANE_OFF };
+            const end = { x: e.x * len + ne.x * FLOW_LANE_OFF, y: e.y * len + ne.y * FLOW_LANE_OFF };
+            const pts = [start];
+            const k = Math.hypot(p2.x - p1.x, p2.y - p1.y) * 0.5;
+            const c1 = { x: p1.x + d.x * k, y: p1.y + d.y * k };
+            const c2 = { x: p2.x - e.x * k, y: p2.y - e.y * k };
+            for (let s = 0; s <= 12; s++) {
+                const t = s / 12, u = 1 - t;
+                pts.push({
+                    x: u*u*u*p1.x + 3*u*u*t*c1.x + 3*u*t*t*c2.x + t*t*t*p2.x,
+                    y: u*u*u*p1.y + 3*u*u*t*c1.y + 3*u*t*t*c2.y + t*t*t*p2.y,
+                });
+            }
+            pts.push(end);
+            paths.push({ pts, endDir: e });
+        };
+        if (m.thru) add(arm.bearing);
+        if (m.left) {
+            const k = findExitArm(i, ((arm.bearing - 90) + 360) % 360, arms);
+            add(k >= 0 ? arms[k].bearing : (arm.bearing + 270) % 360);
+        }
+        if (m.right) {
+            const k = findExitArm(i, (arm.bearing + 90) % 360, arms);
+            add(k >= 0 ? arms[k].bearing : (arm.bearing + 90) % 360);
+        }
+    });
+    return paths;
+}
+
+function clearNodeFlow(nodeId) {
+    if (flowLayers[nodeId]) { map.removeLayer(flowLayers[nodeId]); delete flowLayers[nodeId]; }
+    delete lastFlowKey[nodeId];
+}
+
+function updateNodeFlow(node, sigState, movements, key) {
+    const len = flowEnabled ? flowArmLength(node) : 0;
+    const visible = len >= FLOW_MIN_LEN && sigState !== 'allRed' && Array.isArray(movements);
+    const fullKey = `${visible}|${key}|${Math.round(len)}|${map.getZoom()}`;
+    if (lastFlowKey[node.id] === fullKey) return;
+    clearNodeFlow(node.id);
+    lastFlowKey[node.id] = fullKey;
+    if (!visible) return;
+
+    const z = map.getZoom();
+    const origin = map.project([node.lat, node.lng], z);
+    const toLL = pt => map.unproject(origin.add([pt.x, pt.y]), z);
+    const cls = sigState === 'yellow' ? 'flow-yellow' : 'flow-green';
+    const color = sigState === 'yellow' ? '#f59e0b' : '#16a34a';
+    const group = L.layerGroup();
+    const opt = { renderer: flowRenderer, interactive: false, smoothFactor: 0, lineCap: 'round', lineJoin: 'round' };
+
+    buildFlowPaths(node.arms || defaultArms(), movements, len).forEach(({ pts, endDir }) => {
+        const lls = pts.map(toLL);
+        L.polyline(lls, { ...opt, color: '#1f2937', weight: 14, opacity: 0.35, className: 'flow-casing' }).addTo(group);
+        L.polyline(lls, { ...opt, color, weight: 10, opacity: 0.9, className: 'flow-band' }).addTo(group);
+        L.polyline(lls, { ...opt, color: '#ffffff', weight: 3.5, opacity: 0.95, dashArray: '6 12', className: `flow-dash ${cls}` }).addTo(group);
+        // 出口實心箭頭
+        const tip = pts[pts.length - 1];
+        const a = 20, w = 12;
+        const nx = -endDir.y, ny = endDir.x;
+        const head = [
+            { x: tip.x + endDir.x * a * 0.55, y: tip.y + endDir.y * a * 0.55 },
+            { x: tip.x - endDir.x * a * 0.45 + nx * w, y: tip.y - endDir.y * a * 0.45 + ny * w },
+            { x: tip.x - endDir.x * a * 0.45 - nx * w, y: tip.y - endDir.y * a * 0.45 - ny * w },
+        ].map(toLL);
+        L.polygon(head, { ...opt, color: '#ffffff', weight: 2, fillColor: color, fillOpacity: 1, className: `flow-head ${cls}` }).addTo(group);
+    });
+    group.addTo(map);
+    flowLayers[node.id] = group;
+}
+
+// 縮放後像素尺寸改變，全部重算
+map.on('zoomend', () => { lastFlowKey = {}; updateSignals(); });
+
+document.getElementById('btn-flow-toggle').addEventListener('click', (e) => {
+    flowEnabled = !flowEnabled;
+    e.currentTarget.classList.toggle('active', flowEnabled);
+    e.currentTarget.textContent = flowEnabled ? '🚗 車流動線（開）' : '🚗 車流動線（關）';
+    updateSignals();
+});
 
 // ─── 模擬引擎 ────────────────────────────────────────────────────────────────
 
@@ -1786,6 +1913,8 @@ function loadProjectData(data) {
     Object.values(markers).forEach(m => map.removeLayer(m));
     markers = {};
     lastIconState = {};
+    Object.keys(flowLayers).forEach(clearNodeFlow);
+    lastFlowKey = {};
     polylines.forEach(p => map.removeLayer(p));
     polylines = [];
     state = data;
