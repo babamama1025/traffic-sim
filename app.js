@@ -6,14 +6,12 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_M
 }).addTo(map);
 
 // 系統核心狀態
-let state = { nodes: [], links: [] };
+let state = { nodes: [] };
 let mode = 'SELECT';
-let linkStartNode = null;
 let selectedNodeId = null;
 let currentPopup = null;
 let justClosedPopup = false;
 let markers = {};
-let polylines = [];
 let lastIconState = {}; // { [nodeId]: stateKey } — 避免無謂的 setIcon DOM 替換
 let tsdPhaseSelection = {}; // { [nodeId]: number[] } — 時空圖各路口顯示時相（可多選）
 let tsdTimeOffset = 0;      // 時空圖時間偏移（秒）；0 = 跟隨模擬，負值 = 回顧過去（最多 -600）
@@ -22,6 +20,7 @@ let gbEnabled     = false;
 let gbSpeed       = 40;          // 設計速率 (km/h)
 let gbDirection   = 'FWD';       // 'FWD' 順排序方向 | 'REV' 逆排序方向
 let tsdHiddenIds  = new Set();   // 使用者手動從時空圖隱藏的路口 id
+let tsdSegDist    = {};          // { [segKey]: 公尺 } 使用者輸入的路段長度，未輸入的路段用直線距離
 
 // 模擬與時間變數
 let simulationTime = 0;
@@ -284,15 +283,13 @@ function migratePlan(old, numArms = 4) {
 // ─── UI 模式切換 ─────────────────────────────────────────────────────────────
 
 document.getElementById('btn-add-node').onclick = (e) => setMode('ADD_NODE', e.target);
-document.getElementById('btn-add-link').onclick = (e) => setMode('ADD_LINK', e.target);
 document.getElementById('btn-select').onclick = (e) => setMode('SELECT', e.target);
 
 function setMode(newMode, btnEl) {
     mode = newMode;
-    linkStartNode = null;
     selectedNodeId = null;
     map.closePopup();
-    document.querySelectorAll('.control-group button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.segmented button').forEach(b => b.classList.remove('active'));
     if (btnEl) btnEl.classList.add('active');
     document.getElementById('editor-panel').style.display = 'none';
 }
@@ -322,8 +319,7 @@ function drawNode(nodeData) {
     markers[nodeData.id] = marker;
     marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
-        if (mode === 'ADD_LINK') handleLinkCreation(nodeData.id);
-        else selectNode(nodeData);
+        selectNode(nodeData);
     });
     marker.on('dragend', () => {
         const { lat, lng } = marker.getLatLng();
@@ -331,7 +327,6 @@ function drawNode(nodeData) {
         nodeData.lng = lng;
         lastFlowKey = {}; // 位置改變影響自身與鄰近路口的臂長
         updateSignals();
-        renderLinks();
         updateTimeSpaceDiagram();
     });
 }
@@ -359,34 +354,6 @@ function selectNode(node) {
         `);
     currentPopup = popup;
     popup.openOn(map);
-}
-
-// ─── 建立路段 ────────────────────────────────────────────────────────────────
-
-function handleLinkCreation(nodeId) {
-    if (!linkStartNode) {
-        linkStartNode = nodeId;
-    } else {
-        if (linkStartNode !== nodeId) {
-            state.links.push({ from: linkStartNode, to: nodeId });
-            renderLinks();
-            updateTimeSpaceDiagram();
-        }
-        linkStartNode = null;
-    }
-}
-
-function renderLinks() {
-    polylines.forEach(p => map.removeLayer(p));
-    polylines = [];
-    state.links.forEach(link => {
-        const n1 = state.nodes.find(n => n.id === link.from);
-        const n2 = state.nodes.find(n => n.id === link.to);
-        if (n1 && n2) {
-            const pl = L.polyline([[n1.lat, n1.lng], [n2.lat, n2.lng]], { color: '#444', weight: 5 }).addTo(map);
-            polylines.push(pl);
-        }
-    });
 }
 
 // ─── 時制計畫編輯器 ──────────────────────────────────────────────────────────
@@ -483,12 +450,10 @@ function deleteNode(nodeId) {
     delete lastIconState[nodeId];
     clearNodeFlow(nodeId);
     state.nodes = state.nodes.filter(n => n.id !== nodeId);
-    state.links = state.links.filter(l => l.from !== nodeId && l.to !== nodeId);
     editingNodeId = null;
     selectedNodeId = null;
     currentPopup = null;
     document.getElementById('editor-panel').style.display = 'none';
-    renderLinks();
     rebuildTsdControls();
     updateTimeSpaceDiagram();
 }
@@ -631,10 +596,6 @@ function syncPhaseFromDOM() {
         } else {
             markers[newId] = markers[node.id];
             delete markers[node.id];
-            state.links.forEach(l => {
-                if (l.from === node.id) l.from = newId;
-                if (l.to === node.id) l.to = newId;
-            });
             node.id = newId;
             editingNodeId = newId;
         }
@@ -921,7 +882,7 @@ function buildSignalSVG(sigState, movements, arms, selected = false, phaseIndex 
 
 // ─── 車流動線動畫圖層 ────────────────────────────────────────────────────────
 // 在地圖上以像素尺寸繪製各路口當前放行動線：寬色帶 + 流動虛線 + 出口箭頭
-// 放在路段之上、路口圖示之下；路口中心被圖示遮住，露出進入與離開兩段
+// 放在地圖底圖之上、路口圖示之下；路口中心被圖示遮住，露出進入與離開兩段
 
 map.createPane('flowPane');
 map.getPane('flowPane').style.zIndex = 450;
@@ -1035,25 +996,25 @@ function updateNodeFlow(node, sigState, movements, key) {
 // 縮放後像素尺寸改變，全部重算
 map.on('zoomend', () => { lastFlowKey = {}; updateSignals(); });
 
-document.getElementById('btn-flow-toggle').addEventListener('click', (e) => {
-    flowEnabled = !flowEnabled;
-    e.currentTarget.classList.toggle('active', flowEnabled);
-    e.currentTarget.textContent = flowEnabled ? '🚗 車流動線（開）' : '🚗 車流動線（關）';
+document.getElementById('chk-flow').addEventListener('change', (e) => {
+    flowEnabled = e.target.checked;
     updateSignals();
 });
 
 // ─── 模擬引擎 ────────────────────────────────────────────────────────────────
 
 const btnPlay = document.getElementById('btn-play');
-const btnPause = document.getElementById('btn-pause');
 const tsdBtnPlay = document.getElementById('tsd-btn-play');
-const tsdBtnPause = document.getElementById('tsd-btn-pause');
 
-function syncSimButtons(playClass, pauseClass) {
-    btnPlay.className = playClass;
-    btnPause.className = pauseClass;
-    tsdBtnPlay.className = playClass;
-    tsdBtnPause.className = pauseClass;
+// 播放/暫停合一按鈕：'idle' 未開始、'running' 執行中、'paused' 已暫停
+const SIM_BTN_STATES = {
+    idle:    { cls: 'btn-inactive',      text: '▶️ 開始模擬' },
+    running: { cls: 'btn-play-active',   text: '⏸️ 暫停' },
+    paused:  { cls: 'btn-pause-active',  text: '▶️ 繼續' },
+};
+function syncSimButtons(status) {
+    const s = SIM_BTN_STATES[status];
+    [btnPlay, tsdBtnPlay].forEach(b => { b.className = s.cls; b.textContent = s.text; });
 }
 const selectSpeed = document.getElementById('select-speed');
 
@@ -1065,65 +1026,83 @@ selectSpeed.oninput = () => {
 
 // 幹道時空圖 overlay 開關
 const tsdOverlay = document.getElementById('tsd-overlay');
+function resizeTsdCanvas() {
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight || 300;
+}
 document.getElementById('btn-arterial').onclick = () => {
     tsdOverlay.classList.add('open');
     requestAnimationFrame(() => {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight || 300;
+        resizeTsdCanvas();
         rebuildTsdControls();
         updateTimeSpaceDiagram();
     });
+};
+// 收合 / 展開左側設定欄，讓時空圖使用整個寬度
+document.getElementById('btn-tsd-collapse').onclick = (e) => {
+    const collapsed = document.getElementById('tsd-panel').classList.toggle('collapsed');
+    e.currentTarget.textContent = collapsed ? '▶ 設定' : '◀ 設定';
+    resizeTsdCanvas();
+    updateTimeSpaceDiagram();
 };
 document.getElementById('btn-close-tsd').onclick = () => tsdOverlay.classList.remove('open');
 tsdOverlay.addEventListener('click', e => { if (e.target === tsdOverlay) tsdOverlay.classList.remove('open'); });
 
 // 綠寬帶控制
+function setGbEnabled(on) {
+    gbEnabled = on;
+    const btn = document.getElementById('btn-gb-toggle');
+    btn.classList.toggle('active', on);
+    btn.textContent = on ? '🟢 綠寬帶（開）' : '🟢 繪製綠寬帶';
+    document.getElementById('gb-settings').hidden = !on;
+}
 document.getElementById('btn-gb-toggle').addEventListener('click', () => {
-    gbEnabled = !gbEnabled;
-    const btn      = document.getElementById('btn-gb-toggle');
-    const settings = document.getElementById('gb-settings');
-    if (gbEnabled) {
-        btn.classList.add('active');
-        btn.textContent = '🟢 綠寬帶（開）';
-        settings.hidden = false;
-    } else {
-        btn.classList.remove('active');
-        btn.textContent = '🟢 繪製綠寬帶';
-        settings.hidden = true;
-    }
+    setGbEnabled(!gbEnabled);
+    updateTsdSummary();
     updateTimeSpaceDiagram();
 });
+// 綠寬帶方向選項依排序方向顯示實際方位（FWD = 沿排序方向）
+const SORT_DIR_LABEL = { WE: ['西', '東'], EW: ['東', '西'], SN: ['南', '北'], NS: ['北', '南'] };
+function syncGbDirLabels() {
+    const [from, to] = SORT_DIR_LABEL[tsdSortMode];
+    const opts = document.getElementById('gb-dir').options;
+    opts[0].textContent = `→ ${from}往${to}`;
+    opts[1].textContent = `← ${to}往${from}`;
+}
+syncGbDirLabels();
 document.getElementById('gb-dir').addEventListener('change', e => {
     gbDirection = e.target.value;
     updateTimeSpaceDiagram();
 });
 document.getElementById('tsd-sort-mode').addEventListener('change', e => {
     tsdSortMode = e.target.value;
+    syncGbDirLabels();
     rebuildTsdControls();
     updateTimeSpaceDiagram();
 });
 document.getElementById('gb-speed-input').addEventListener('input', e => {
     const v = parseFloat(e.target.value);
-    if (v > 0) { gbSpeed = v; updateTimeSpaceDiagram(); }
+    if (v > 0) { gbSpeed = v; updateTsdSummary(); updateTimeSpaceDiagram(); }
 });
 
-btnPlay.onclick = tsdBtnPlay.onclick = () => {
+function playSim() {
     simStarted = true;
     startTimer();
-    syncSimButtons('btn-play-active', 'btn-inactive');
+    syncSimButtons('running');
     document.getElementById('editor-panel').style.display = 'none';
-};
+}
+
+btnPlay.onclick = tsdBtnPlay.onclick = () => simInterval ? pauseSim() : playSim();
 
 function pauseSim() {
     stopTimer();
-    syncSimButtons('btn-inactive', 'btn-pause-active');
+    syncSimButtons('paused');
     if (editingNodeId) {
         const node = state.nodes.find(n => n.id === editingNodeId);
         if (node) openEditor(node);
     }
 }
 
-btnPause.onclick = tsdBtnPause.onclick = pauseSim;
 
 document.getElementById('btn-reset').onclick = () => {
     stopTimer();
@@ -1131,7 +1110,7 @@ document.getElementById('btn-reset').onclick = () => {
     simulationTime = 0;
     simMaxTime = 0;
     clockEl.innerText = 0;
-    syncSimButtons('btn-inactive', 'btn-inactive');
+    syncSimButtons('idle');
     document.getElementById('node-status-panel').style.display = 'none';
     if (editingNodeId) {
         const node = state.nodes.find(n => n.id === editingNodeId);
@@ -1176,11 +1155,20 @@ simTimeline.addEventListener('input', () => {
 
 function rebuildTsdControls() {
     if (!tsdOverlay.classList.contains('open')) return;
-    rebuildNodeFilterChips();
+    rebuildPresetSelect();
     const container = document.getElementById('tsd-controls');
-    const sortedNodes = getVisibleNodes();
+    const sortedNodes = getSortedNodes();
+    // 清除已消失路口的隱藏紀錄（新路口預設顯示，不需特別處理）
+    const valid = new Set(sortedNodes.map(n => n.id));
+    tsdHiddenIds.forEach(id => { if (!valid.has(id)) tsdHiddenIds.delete(id); });
+    const chain = getVisibleChain();
+    const visibleIdx = new Map(chain.nodes.map((n, k) => [n.id, k]));
     container.innerHTML = '';
     sortedNodes.forEach(node => {
+        // 顯示路口之間插入路段長度列（放在下一個顯示路口之前，中間的隱藏路口被跨過）
+        const k = visibleIdx.get(node.id);
+        if (k > 0) container.appendChild(buildSegmentRow(chain.nodes[k - 1], node, chain.segs[k], chain.cumDist[k]));
+
         const numPhases = node.plan.phases.length;
         // 初始化或清除超出範圍的索引
         if (!(node.id in tsdPhaseSelection) || !Array.isArray(tsdPhaseSelection[node.id])) {
@@ -1190,12 +1178,31 @@ function rebuildTsdControls() {
             if (tsdPhaseSelection[node.id].length === 0) tsdPhaseSelection[node.id] = [0];
         }
 
+        const hidden = tsdHiddenIds.has(node.id);
         const row = document.createElement('div');
-        row.className = 'tsd-phase-sel';
+        row.className = 'tsd-phase-sel' + (hidden ? ' hidden-node' : '');
 
+        // 顯示勾選框 + 路口名稱
+        const label = document.createElement('label');
+        label.title = node.name || node.id;
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = !hidden;
+        chk.addEventListener('change', () => {
+            if (chk.checked) {
+                tsdHiddenIds.delete(node.id);
+            } else if (sortedNodes.filter(n => !tsdHiddenIds.has(n.id)).length <= 1) {
+                chk.checked = true; return; // 至少保留一個路口
+            } else {
+                tsdHiddenIds.add(node.id);
+            }
+            rebuildTsdControls();
+            updateTimeSpaceDiagram();
+        });
         const nameSpan = document.createElement('span');
         nameSpan.textContent = node.name || node.id;
-        row.appendChild(nameSpan);
+        label.append(chk, nameSpan);
+        row.appendChild(label);
 
         for (let i = 0; i < numPhases; i++) {
             const btn = document.createElement('button');
@@ -1220,6 +1227,52 @@ function rebuildTsdControls() {
 
         container.appendChild(row);
     });
+}
+
+// 路段長度列：「↓ [輸入] m  直線 148 m ↺   累計 313 m」
+// 未輸入時欄位以淡字顯示目前採用的距離；修改後下游累計距離自動重算
+function buildSegmentRow(a, b, seg, cum) {
+    const key = segKey(a, b);
+    const row = document.createElement('div');
+    row.className = 'tsd-seg-row' + (seg.src === 'user' ? ' user' : '');
+    row.title = `${a.name || a.id} → ${b.name || b.id} 的實際路段長度`;
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '1';
+    input.step = '1';
+    input.placeholder = Math.round(seg.m);
+    if (seg.src === 'user') input.value = seg.m;
+    input.addEventListener('change', () => {
+        const v = parseFloat(input.value);
+        if (v > 0) tsdSegDist[key] = v; else delete tsdSegDist[key];
+        rebuildTsdControls();
+        updateTimeSpaceDiagram();
+    });
+
+    const hint = document.createElement('span');
+    hint.className = 'tsd-seg-hint';
+    hint.textContent = seg.src === 'user' ? `直線 ${Math.round(haversineM(a, b))} m`
+                     : seg.src === 'sum'  ? '（各段加總）' : '（直線距離）';
+
+    row.append('↓ ', input, ' m ', hint);
+    if (seg.src === 'user') {
+        const reset = document.createElement('button');
+        reset.className = 'tsd-seg-reset';
+        reset.textContent = '↺';
+        reset.title = '清除，改用預設距離';
+        reset.addEventListener('click', () => {
+            delete tsdSegDist[key];
+            rebuildTsdControls();
+            updateTimeSpaceDiagram();
+        });
+        row.appendChild(reset);
+    }
+    const cumSpan = document.createElement('span');
+    cumSpan.className = 'tsd-seg-cum';
+    cumSpan.textContent = `累計 ${cum < 1000 ? Math.round(cum) + ' m' : (cum / 1000).toFixed(2) + ' km'}`;
+    row.appendChild(cumSpan);
+    return row;
 }
 
 // ─── 幹道綠寬帶 ─────────────────────────────────────────────────────────────
@@ -1296,19 +1349,21 @@ function computeGreenBands(gbNodes, travelTimes, searchMin, searchMax) {
 }
 
 // 在 canvas 上繪製綠寬帶（需在 clip context 內呼叫）
-function drawGreenBands(sortedNodes, yPositions, padL, drawW, padT, minTime, maxTime, timeWindow) {
+function drawGreenBands(sortedNodes, cumDist, yPositions, padL, drawW, padT, minTime, maxTime, timeWindow) {
     const orderedNodes = gbGetOrderedNodes(sortedNodes);
-    if (orderedNodes.length < 2) return;
+    if (orderedNodes.length < 2) return [];
 
     const speedMs = gbSpeed / 3.6;
-    // 計算累積行程時間
+    // 計算累積行程時間（距離與縱軸相同，含使用者輸入的路段長度）
+    const cumMap = new Map(sortedNodes.map((n, i) => [n.id, cumDist[i]]));
     const travelTimes = [0];
     for (let i = 1; i < orderedNodes.length; i++)
-        travelTimes.push(travelTimes[i - 1] + haversineM(orderedNodes[i - 1], orderedNodes[i]) / speedMs);
+        travelTimes.push(travelTimes[i - 1] +
+            Math.abs(cumMap.get(orderedNodes[i].id) - cumMap.get(orderedNodes[i - 1].id)) / speedMs);
     const lastTT = travelTimes[travelTimes.length - 1];
 
     const bands = computeGreenBands(orderedNodes, travelTimes, minTime - lastTT - 5, maxTime + 5);
-    if (!bands.length) return;
+    if (!bands.length) return [];
 
     const yMap  = new Map(sortedNodes.map((n, i) => [n.id, yPositions[i]]));
     const tToX  = t => padL + ((t - minTime) / timeWindow) * drawW;
@@ -1356,37 +1411,141 @@ function drawGreenBands(sortedNodes, yPositions, padL, drawW, padT, minTime, max
         }
     });
     ctx.restore();
+    return bands;
 }
 
-// 重建「顯示路口」篩選晶片 —— 決定哪些路口要出現在時空圖中（含綠寬帶）
-function rebuildNodeFilterChips() {
-    const container = document.getElementById('tsd-node-chips');
-    if (!container) return;
-    container.innerHTML = '';
-    const sortedNodes = getSortedNodes();
-    // 清除已消失路口的隱藏紀錄（新路口預設顯示，不需特別處理）
-    const valid = new Set(sortedNodes.map(n => n.id));
-    tsdHiddenIds.forEach(id => { if (!valid.has(id)) tsdHiddenIds.delete(id); });
-
-    sortedNodes.forEach(node => {
-        const btn = document.createElement('button');
-        btn.className = 'tsd-phase-toggle node-chip' + (tsdHiddenIds.has(node.id) ? '' : ' active');
-        btn.textContent = node.name || node.id;
-        btn.title = node.name || node.id;
-        btn.addEventListener('click', () => {
-            const visibleCount = sortedNodes.filter(n => !tsdHiddenIds.has(n.id)).length;
-            if (tsdHiddenIds.has(node.id)) {
-                tsdHiddenIds.delete(node.id);
-            } else {
-                if (visibleCount <= 1) return;
-                tsdHiddenIds.add(node.id);
-            }
-            rebuildTsdControls();
-            updateTimeSpaceDiagram();
-        });
-        container.appendChild(btn);
-    });
+// 綠寬帶摘要：帶寬與帶寬效率（帶寬 / 週期；各路口週期不同時不計效率）
+function updateGbSummary(sortedNodes, bands) {
+    const el = document.getElementById('gb-summary');
+    const bws = bands.map(b => b.bw).filter(bw => bw >= 0.5);
+    let text;
+    if (sortedNodes.length < 2) text = '需至少 2 個路口';
+    else if (!bws.length) text = '⚠️ 此速率下無可通行綠寬帶';
+    else {
+        const maxBw = Math.round(Math.max(...bws)), minBw = Math.round(Math.min(...bws));
+        const cycles = new Set(sortedNodes.map(n => n.plan.cycle));
+        text = cycles.size === 1
+            ? `帶寬 ${maxBw} 秒 · 效率 ${Math.round(maxBw / [...cycles][0] * 100)}%（週期 ${[...cycles][0]} 秒）`
+            : `帶寬 ${minBw === maxBw ? maxBw : minBw + '–' + maxBw} 秒（各路口週期不同）`;
+    }
+    if (el.textContent !== text) el.textContent = text;
 }
+
+// ─── 幹道設定（多組，綁定時制方案）──────────────────────────────────────────
+// state.tsdPresets = [{ id, name, hiddenIds, phaseSelection, sortMode, gbEnabled, gbDirection, gbSpeed }]
+// 只放「目前載入的方案」的設定：目錄專案存於 plans/<planId>.json 的 tsdPresets，
+// 沒有方案的專案或本機檔案則存於專案檔本身。
+let tsdPresetId = '';  // 目前選取的設定 id（'' = 未儲存的設定）
+
+function currentPlanName() {
+    const opt = selPlan.options[selPlan.selectedIndex];
+    return opt ? opt.textContent : '專案內建時制';
+}
+function presetsForPlan() {
+    return state.tsdPresets || [];
+}
+
+function rebuildPresetSelect() {
+    const sel = document.getElementById('tsd-preset-select');
+    const list = presetsForPlan();
+    if (!list.some(p => p.id === tsdPresetId)) tsdPresetId = '';
+    sel.innerHTML = '<option value="">（未儲存的設定）</option>' +
+        list.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    sel.value = tsdPresetId;
+    document.getElementById('tsd-preset-plan').textContent = `綁定方案：${currentPlanName()}`;
+    document.getElementById('btn-tsd-preset-rename').disabled =
+    document.getElementById('btn-tsd-preset-delete').disabled = !tsdPresetId;
+    updateTsdSummary();
+}
+
+// 標題列一行摘要（設定欄收合時也能看到目前狀態）
+function updateTsdSummary() {
+    const preset = presetsForPlan().find(p => p.id === tsdPresetId);
+    const [from, to] = SORT_DIR_LABEL[tsdSortMode];
+    document.getElementById('tsd-summary').textContent =
+        `${preset ? preset.name : '未儲存的設定'} · ${from}→${to}` +
+        (gbEnabled ? ` · 綠寬帶 ${gbSpeed} km/h` : '');
+}
+
+function snapshotPreset() {
+    return {
+        hiddenIds: [...tsdHiddenIds],
+        phaseSelection: JSON.parse(JSON.stringify(tsdPhaseSelection)),
+        segDist: { ...tsdSegDist },
+        sortMode: tsdSortMode, gbEnabled, gbDirection, gbSpeed,
+    };
+}
+
+// 套用設定（p = null 時恢復預設值）
+function applyPreset(p) {
+    tsdPresetId       = p ? p.id : '';
+    tsdHiddenIds      = new Set(p ? p.hiddenIds : []);
+    tsdPhaseSelection = JSON.parse(JSON.stringify(p ? p.phaseSelection : {}));
+    tsdSegDist        = { ...(p && p.segDist) };
+    tsdSortMode       = p ? p.sortMode : 'WE';
+    gbDirection       = p ? p.gbDirection : 'FWD';
+    gbSpeed           = p ? p.gbSpeed : 40;
+    setGbEnabled(p ? p.gbEnabled : false);
+    document.getElementById('tsd-sort-mode').value = tsdSortMode;
+    document.getElementById('gb-dir').value = gbDirection;
+    document.getElementById('gb-speed-input').value = gbSpeed;
+    syncGbDirLabels();
+    rebuildTsdControls();
+    updateTimeSpaceDiagram();
+}
+
+// 載入專案或切換方案後，自動套用該方案的第一組設定
+function applyPresetForCurrentPlan() {
+    applyPreset(presetsForPlan()[0] || null);
+}
+
+function showPresetMsg(text) {
+    const el = document.getElementById('tsd-preset-msg');
+    el.textContent = text;
+    clearTimeout(showPresetMsg.timer);
+    showPresetMsg.timer = setTimeout(() => { el.textContent = ''; }, 4000);
+}
+const SAVE_REMINDER = '，記得按側欄「💾 儲存」寫入檔案';
+
+function savePresetAs() {
+    const name = prompt('幹道設定名稱：', `幹道設定 ${presetsForPlan().length + 1}`);
+    if (!name || !name.trim()) return;
+    const preset = { id: 'tsd' + Date.now(), name: name.trim(), ...snapshotPreset() };
+    (state.tsdPresets = state.tsdPresets || []).push(preset);
+    tsdPresetId = preset.id;
+    rebuildPresetSelect();
+    showPresetMsg('✅ 已新增' + SAVE_REMINDER);
+}
+
+document.getElementById('tsd-preset-select').onchange = (e) => {
+    const p = presetsForPlan().find(x => x.id === e.target.value);
+    if (p) applyPreset(p);
+    else { tsdPresetId = ''; rebuildPresetSelect(); } // 保留目前畫面，僅脫離已存設定
+};
+document.getElementById('btn-tsd-preset-save').onclick = () => {
+    const p = presetsForPlan().find(x => x.id === tsdPresetId);
+    if (!p) return savePresetAs();
+    Object.assign(p, snapshotPreset());
+    rebuildPresetSelect();
+    showPresetMsg('✅ 已更新' + SAVE_REMINDER);
+};
+document.getElementById('btn-tsd-preset-saveas').onclick = savePresetAs;
+document.getElementById('btn-tsd-preset-rename').onclick = () => {
+    const p = presetsForPlan().find(x => x.id === tsdPresetId);
+    if (!p) return;
+    const name = prompt('新名稱：', p.name);
+    if (!name || !name.trim()) return;
+    p.name = name.trim();
+    rebuildPresetSelect();
+};
+document.getElementById('btn-tsd-preset-delete').onclick = () => {
+    const p = presetsForPlan().find(x => x.id === tsdPresetId);
+    if (!p || !confirm(`確定刪除「${p.name}」？`)) return;
+    state.tsdPresets = state.tsdPresets.filter(x => x !== p);
+    tsdPresetId = '';
+    rebuildPresetSelect();
+    showPresetMsg('已刪除' + SAVE_REMINDER);
+};
 
 // 依 tsdSortMode 回傳排序後的路口陣列（全部路口）
 function getSortedNodes() {
@@ -1395,9 +1554,37 @@ function getSortedNodes() {
     return [...state.nodes].sort((a, b) => asc ? a[axis] - b[axis] : b[axis] - a[axis]);
 }
 
-// 依 tsdHiddenIds 篩選出要顯示於時空圖的路口
-function getVisibleNodes() {
-    return getSortedNodes().filter(n => !tsdHiddenIds.has(n.id));
+// ─── 路段長度（使用者輸入，存於幹道設定 segDist）───────────────────────────────
+// 以兩端路口 id（不分方向）為鍵，換排序方向時仍有效
+function segKey(a, b) { return [a.id, b.id].sort().join('|'); }
+
+// all[iA] → all[iB] 的路段長度（兩者之間可能夾著隱藏路口）：
+// 1. 使用者直接輸入此段 → 用輸入值
+// 2. 中間有隱藏路口且各小段都有輸入 → 用加總
+// 3. 否則 → 兩端直線距離（不繞經隱藏路口，避免繞到其他幹道上的路口）
+function segmentLength(all, iA, iB) {
+    const user = tsdSegDist[segKey(all[iA], all[iB])];
+    if (user > 0) return { m: user, src: 'user' };
+    if (iB - iA > 1) {
+        const subs = [];
+        for (let i = iA; i < iB; i++) subs.push(tsdSegDist[segKey(all[i], all[i + 1])]);
+        if (subs.every(v => v > 0)) return { m: subs.reduce((s, v) => s + v, 0), src: 'sum' };
+    }
+    return { m: haversineM(all[iA], all[iB]), src: 'line' };
+}
+
+// 顯示於時空圖的路口與累計距離；segs[k] = 第 k-1 → k 個顯示路口的路段
+function getVisibleChain() {
+    const all = getSortedNodes();
+    const idx = [];
+    all.forEach((n, i) => { if (!tsdHiddenIds.has(n.id)) idx.push(i); });
+    const nodes = idx.map(i => all[i]), cumDist = [0], segs = [null];
+    for (let k = 1; k < idx.length; k++) {
+        const seg = segmentLength(all, idx[k - 1], idx[k]);
+        segs.push(seg);
+        cumDist.push(cumDist[k - 1] + seg.m);
+    }
+    return { nodes, cumDist, segs };
 }
 
 function haversineM(n1, n2) {
@@ -1414,13 +1601,9 @@ function updateTimeSpaceDiagram() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (state.nodes.length === 0) return;
 
-    const sortedNodes = getVisibleNodes();
+    // 累積距離（公尺；使用者輸入的路段長度優先），用於縱軸比例定位與綠寬帶行程時間
+    const { nodes: sortedNodes, cumDist } = getVisibleChain();
     const numNodes = sortedNodes.length;
-
-    // 累積地理距離（公尺），用於縱軸比例定位
-    const cumDist = [0];
-    for (let i = 1; i < numNodes; i++)
-        cumDist.push(cumDist[i - 1] + haversineM(sortedNodes[i - 1], sortedNodes[i]));
     const totalDist = cumDist[numNodes - 1] || 1;
 
     const padL = 72, padR = 20, padT = 20, padB = 30;
@@ -1488,8 +1671,10 @@ function updateTimeSpaceDiagram() {
                 sigState === 'green'  ? 'rgba(40, 167, 69, 0.75)' :
                 sigState === 'yellow' ? 'rgba(255, 193, 7, 0.85)' :
                                         'rgba(220, 53, 69, 0.65)';
-            const x = padL + ((t - minTime) / timeWindow) * drawW;
-            ctx.fillRect(x, y + 2, 1, 10);
+            // 每秒填滿到下一秒的位置；取整數像素避免半透明色相鄰處出現接縫，並限制在繪圖區內
+            const x1 = Math.round(Math.max(padL, padL + ((t - minTime) / timeWindow) * drawW));
+            const x2 = Math.round(Math.min(padL + drawW, padL + ((t + 1 - minTime) / timeWindow) * drawW));
+            if (x2 > x1) ctx.fillRect(x1, y + 2, x2 - x1, 10);
         }
 
         ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1;
@@ -1497,8 +1682,8 @@ function updateTimeSpaceDiagram() {
     });
 
     // 綠寬帶（繪於號誌色帶上方，同在 clip 內）
-    if (gbEnabled && state.nodes.length >= 2)
-        drawGreenBands(sortedNodes, yPositions, padL, drawW, padT, minTime, maxTime, timeWindow);
+    if (gbEnabled)
+        updateGbSummary(sortedNodes, drawGreenBands(sortedNodes, cumDist, yPositions, padL, drawW, padT, minTime, maxTime, timeWindow));
 
     ctx.restore();
 
@@ -1607,10 +1792,6 @@ function buildNodeCard(node) {
             } else {
                 markers[newId] = markers[node.id]; delete markers[node.id];
                 delete lastIconState[node.id];
-                state.links.forEach(l => {
-                    if (l.from === node.id) l.from = newId;
-                    if (l.to === node.id) l.to = newId;
-                });
                 if (editingNodeId === node.id) editingNodeId = newId;
                 if (selectedNodeId === node.id) selectedNodeId = newId;
                 if (tsdPhaseSelection[node.id] !== undefined) {
@@ -1868,13 +2049,21 @@ function validateCardConflicts(phaseDiv, phase, arms) {
 }
 
 // ─── 專案儲存 / 讀取 ─────────────────────────────────────────────────────────
+// 以 server.py（start-local.bat）開啟目錄專案時直接寫回 projects/；否則下載完整專案檔。
 
 document.getElementById('btn-save').onclick = () => {
+    if (saveApi && loadedProjectId) {
+        saveToCatalog(loadedPlanId)
+            .then(() => { markSaved(); flashSaveButton('✅ 已寫入'); })
+            .catch(err => alert('存檔失敗：' + err.message));
+        return;
+    }
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(state));
     const a = document.createElement('a');
     a.setAttribute('href', dataStr);
     a.setAttribute('download', 'traffic_project.json');
     a.click();
+    markSaved();
 };
 
 // ─── 路口選取彈窗事件 ────────────────────────────────────────────────────────
@@ -1915,9 +2104,8 @@ function loadProjectData(data) {
     lastIconState = {};
     Object.keys(flowLayers).forEach(clearNodeFlow);
     lastFlowKey = {};
-    polylines.forEach(p => map.removeLayer(p));
-    polylines = [];
     state = data;
+    delete state.links; // 未使用的舊欄位
     // 自動升級舊格式
     state.nodes.forEach(node => {
         // 1. 建立 arms（若尚未有）
@@ -1930,9 +2118,13 @@ function loadProjectData(data) {
                 { bearing: (180 + b) % 360, label: 'SB' },
             ];
         }
+        delete node.bearing; // 只在上面建立 arms 時使用的舊欄位
         const numArms = node.arms.length;
-        // 2. 升級 plan（最舊格式）
-        if (!node.plan.phases) {
+        // 2. 有方案的目錄專案，project.json 不含時制，先給預設值（隨後由方案檔覆蓋）
+        if (!node.plan) {
+            node.plan = defaultPlan(numArms);
+        // 升級 plan（最舊格式）
+        } else if (!node.plan.phases) {
             node.plan = migratePlan(node.plan, numArms);
         } else {
             // 3. 升級各時相 movements（舊物件格式 → 新陣列格式）
@@ -1943,15 +2135,21 @@ function loadProjectData(data) {
         }
         drawNode(node);
     });
-    renderLinks();
     if (state.nodes.length > 0) {
         const latlngs = state.nodes.map(n => [n.lat, n.lng]);
         map.fitBounds(L.latLngBounds(latlngs), { padding: [60, 60] });
     }
     updateSignals();
-    tsdPhaseSelection = {};
-    rebuildTsdControls();
-    updateTimeSpaceDiagram();
+    if (state.tsdSettings) {
+        state.tsdPresets = state.tsdPresets || [];
+        state.tsdPresets.push({
+            id: 'tsd' + Date.now(), name: '預設',
+            hiddenIds: state.tsdSettings.hiddenIds || [],
+            phaseSelection: state.tsdSettings.phaseSelection || {},
+            sortMode: 'WE', gbEnabled: false, gbDirection: 'FWD', gbSpeed: 40,
+        });
+        delete state.tsdSettings;
+    }
     if (allNodesOverlay.classList.contains('open')) buildAllNodesPanel();
 }
 
@@ -1959,15 +2157,246 @@ document.getElementById('file-load').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
+    e.target.value = ''; // 允許重複讀取同一檔案
+    if (!confirmDiscard()) return;
     reader.onload = function(event) {
+        // 本機檔案不在目錄中：清空選單與網址參數，避免分享出錯的連結
+        loadedProjectId = loadedPlanId = null;
+        restoreSelects();
+        history.replaceState(null, '', location.pathname);
         loadProjectData(JSON.parse(event.target.result));
+        applyPresetForCurrentPlan();
+        markSaved();
     };
     reader.readAsText(file);
 });
 
-// 預設載入桃園示範專案（以 http(s) 伺服器開啟時才會成功；直接雙擊開啟 index.html 時
-// 瀏覽器會擋 fetch 本機檔案，此時維持空專案，不影響其他功能）
-fetch('TY/traffic_project.json')
-    .then(res => res.ok ? res.json() : Promise.reject())
-    .then(data => loadProjectData(data))
+// ─── 時制計畫儲存 / 讀取（arms + plan，以路口 id 對應）────────────────────────────
+
+// 方案檔內容：各路口 arms + plan，以及此方案的幹道設定
+function buildTimingPlansData() {
+    const plans = {};
+    state.nodes.forEach(n => { plans[n.id] = { arms: n.arms, plan: n.plan }; });
+    return { type: 'timing-plans', savedAt: new Date().toISOString(), plans, tsdPresets: state.tsdPresets || [] };
+}
+
+document.getElementById('btn-save-plans').onclick = () => {
+    const data = buildTimingPlansData();
+    const a = document.createElement('a');
+    a.setAttribute('href', 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(data)));
+    a.setAttribute('download', 'timing_plans.json');
+    a.click();
+};
+
+document.getElementById('file-load-plans').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = ''; // 允許重複讀取同一檔案
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        let data;
+        try { data = JSON.parse(event.target.result); } catch { alert('檔案格式錯誤'); return; }
+        if (data.type !== 'timing-plans' || !data.plans) { alert('此檔案不是時制計畫檔'); return; }
+        // 視為修改目前方案：之後可「💾 儲存」覆寫，或「＋ 另存新方案」
+        const { applied, mismatched, missing } = applyTimingPlans(data);
+        if (data.tsdPresets) { state.tsdPresets = data.tsdPresets; applyPresetForCurrentPlan(); }
+        let msg = `已套用 ${applied.length} 個路口的時制計畫。`;
+        if (mismatched.length) msg += `\n臂數不符而略過：${mismatched.join(', ')}`;
+        if (missing.length) msg += `\n檔案中無資料：${missing.join(', ')}`;
+        alert(msg);
+    };
+    reader.readAsText(file);
+});
+
+function applyTimingPlans(data) {
+    const applied = [], mismatched = [], missing = [];
+    state.nodes.forEach(node => {
+        const entry = data.plans[node.id];
+        if (!entry) { missing.push(node.id); return; }
+        if (entry.arms) {
+            node.arms = JSON.parse(JSON.stringify(entry.arms));
+        } else if (entry.armCount !== node.arms.length) { // 舊版檔案僅存臂數
+            mismatched.push(node.id); return;
+        }
+        node.plan = JSON.parse(JSON.stringify(entry.plan));
+        applied.push(node.id);
+    });
+    lastIconState = {};
+    lastFlowKey = {};
+    updateSignals();
+    rebuildTsdControls();
+    updateTimeSpaceDiagram();
+    if (allNodesOverlay.classList.contains('open')) buildAllNodesPanel();
+    const editNode = state.nodes.find(n => n.id === editingNodeId);
+    if (editNode) openEditor(editNode);
+    return { applied, mismatched, missing };
+}
+
+// ─── 專案 / 方案目錄（projects/index.json）與網址參數 ?project=TY&plan=AM ──────────
+// 以 http(s) 伺服器開啟時才會成功；直接雙擊開啟 index.html 時瀏覽器會擋 fetch 本機檔案，
+// 此時選單為空、維持空專案，不影響其他功能。
+
+const selProject = document.getElementById('select-project');
+const selPlan = document.getElementById('select-plan');
+let catalog = [];
+let loadedProjectId = null; // 目前載入的目錄專案（null = 本機檔案或空專案）
+let loadedPlanId = null;    // 目前載入的方案（'' = 專案沒有方案，時制存於 project.json）
+
+function fetchJson(url) {
+    return fetch(url, { cache: 'no-store' }).then(res => res.ok ? res.json() : Promise.reject(new Error(url)));
+}
+
+// 有方案時只列方案；沒有方案的專案才使用 project.json 內的時制
+function fillPlanSelect(proj, planId) {
+    const plans = proj.plans || [];
+    selPlan.innerHTML = plans.length
+        ? plans.map(p => `<option value="${p.id}">${p.name || p.id}</option>`).join('')
+        : '<option value="">專案內建時制</option>';
+    selPlan.value = planId;
+}
+
+// 選單還原為目前實際載入的專案 / 方案（取消切換或載入失敗時）
+function restoreSelects() {
+    const proj = catalog.find(p => p.id === loadedProjectId);
+    if (proj) {
+        selProject.value = proj.id;
+        fillPlanSelect(proj, loadedPlanId);
+    } else {
+        selProject.selectedIndex = -1;
+        selPlan.innerHTML = '';
+    }
+}
+
+function syncUrl() {
+    const params = new URLSearchParams({ project: loadedProjectId });
+    if (loadedPlanId) params.set('plan', loadedPlanId);
+    history.replaceState(null, '', '?' + params);
+}
+
+// 每次切換都重新讀取 project.json 再套方案，確保不殘留前一個方案的時制
+function loadFromCatalog(projectId, planId) {
+    const proj = catalog.find(p => p.id === projectId);
+    if (!proj) return;
+    const plans = proj.plans || [];
+    if (!plans.some(p => p.id === planId)) planId = plans[0]?.id || '';
+    selProject.value = proj.id;
+    fillPlanSelect(proj, planId);
+    const base = `projects/${proj.id}/`;
+    Promise.all([fetchJson(base + 'project.json'), planId ? fetchJson(`${base}plans/${planId}.json`) : null])
+        .then(([project, plan]) => {
+            loadProjectData(project);
+            if (plan) {
+                const { mismatched, missing } = applyTimingPlans(plan);
+                if (mismatched.length || missing.length) console.warn('方案未完整套用', { mismatched, missing });
+                // 舊版的幹道設定存於 project.json 並以 planId 綁定
+                state.tsdPresets = plan.tsdPresets || (state.tsdPresets || []).filter(p => p.planId === planId);
+            }
+            loadedProjectId = proj.id;
+            loadedPlanId = planId;
+            applyPresetForCurrentPlan();
+            markSaved();
+            syncUrl();
+        })
+        .catch(err => { restoreSelects(); alert('載入失敗：' + err.message); });
+}
+
+selProject.onchange = () => confirmDiscard() ? loadFromCatalog(selProject.value, '') : restoreSelects();
+selPlan.onchange = () => confirmDiscard() ? loadFromCatalog(selProject.value, selPlan.value) : restoreSelects();
+
+fetchJson('projects/index.json')
+    .then(data => {
+        catalog = data.projects || [];
+        selProject.innerHTML = catalog.map(p => `<option value="${p.id}">${p.name || p.id}</option>`).join('');
+        const q = new URLSearchParams(location.search);
+        const pid = catalog.some(p => p.id === q.get('project')) ? q.get('project') : catalog[0]?.id;
+        if (pid) loadFromCatalog(pid, q.get('plan') || '');
+    })
     .catch(() => {});
+
+// ─── 寫回專案資料夾（需以 server.py 啟動）────────────────────────────────────
+// 僅供單人本機使用；部署給多人使用時需改用其他儲存方式。
+
+let saveApi = false;
+fetch('api/ping', { cache: 'no-store' })
+    .then(res => { saveApi = res.ok; updateSaveUI(); })
+    .catch(() => {});
+
+function postSave(path, data) {
+    return fetch('api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, data }),
+    }).then(res => res.ok ? res : res.text().then(t => Promise.reject(new Error(t))));
+}
+
+// project.json：有方案時只存路口幾何；沒有方案（planId = ''）時連時制與幹道設定一起存
+function buildProjectData(withTiming) {
+    const data = {
+        nodes: state.nodes.map(({ id, name, lat, lng, arms, plan }) =>
+            withTiming ? { id, name, lat, lng, arms, plan } : { id, name, lat, lng, arms }),
+    };
+    if (withTiming) data.tsdPresets = state.tsdPresets || [];
+    return data;
+}
+
+function saveToCatalog(planId) {
+    const base = `projects/${loadedProjectId}/`;
+    const jobs = [postSave(base + 'project.json', buildProjectData(!planId))];
+    if (planId) jobs.push(postSave(`${base}plans/${planId}.json`, buildTimingPlansData()));
+    return Promise.all(jobs);
+}
+
+document.getElementById('btn-save-as-plan').onclick = () => {
+    const proj = catalog.find(p => p.id === loadedProjectId);
+    if (!saveApi || !proj) return;
+    const name = prompt('新方案名稱：', '');
+    if (!name || !name.trim()) return;
+    const id = prompt('方案代號（英數字、- 或 _，用於檔名與網址）：', '');
+    if (!id) return;
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) return alert('代號只能使用英數字、- 或 _');
+    if ((proj.plans || []).some(p => p.id === id)) return alert('此代號已存在');
+    const oldPlans = proj.plans;
+    proj.plans = [...(oldPlans || []), { id, name: name.trim() }];
+    saveToCatalog(id)
+        .then(() => postSave('projects/index.json', { projects: catalog }))
+        .then(() => {
+            loadedPlanId = id;
+            fillPlanSelect(proj, id);
+            syncUrl();
+            markSaved();
+            rebuildTsdControls();
+            flashSaveButton('✅ 已另存');
+        })
+        .catch(err => { proj.plans = oldPlans; alert('存檔失敗：' + err.message); });
+};
+
+// ─── 未存檔提示 ─────────────────────────────────────────────────────────────
+// 以快照比對判斷是否有修改，不必在每個編輯動作埋標記
+
+let savedSnapshot = '';
+let saveFlashUntil = 0;
+function snapshotState() { return JSON.stringify([state.nodes, state.tsdPresets || []]); }
+function isDirty() { return snapshotState() !== savedSnapshot; }
+function markSaved() { savedSnapshot = snapshotState(); updateSaveUI(); }
+function confirmDiscard() { return !isDirty() || confirm('有未儲存的修改，確定要放棄嗎？'); }
+
+function flashSaveButton(text) {
+    saveFlashUntil = Date.now() + 1500;
+    document.getElementById('btn-save').textContent = text;
+}
+
+function updateSaveUI() {
+    const btn = document.getElementById('btn-save');
+    const dirty = isDirty();
+    btn.classList.toggle('dirty', dirty);
+    if (Date.now() > saveFlashUntil) btn.textContent = dirty ? '💾 儲存 ●' : '💾 儲存';
+    const toCatalog = saveApi && loadedProjectId;
+    btn.title = (dirty ? '有未儲存的修改 · ' : '') + (toCatalog ? '寫回專案資料夾' : '下載專案檔');
+    document.getElementById('btn-save-as-plan').hidden = !toCatalog;
+}
+
+markSaved();
+setInterval(updateSaveUI, 1000);
+window.addEventListener('beforeunload', e => {
+    if (isDirty()) { e.preventDefault(); e.returnValue = ''; }
+});

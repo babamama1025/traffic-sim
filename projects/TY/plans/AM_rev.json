@@ -1,0 +1,2833 @@
+{
+  "type": "timing-plans",
+  "savedAt": "2026-11-06T02:43:50.560Z",
+  "plans": {
+    "N2": {
+      "arms": [
+        {
+          "bearing": 74,
+          "label": "EB"
+        },
+        {
+          "bearing": 254,
+          "label": "WB"
+        },
+        {
+          "bearing": 333,
+          "label": "NB"
+        },
+        {
+          "bearing": 153,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 14,
+            "yellow": 3,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              }
+            ]
+          },
+          {
+            "green": 111,
+            "yellow": 4,
+            "allRed": 5,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 31,
+            "yellow": 4,
+            "allRed": 5,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N1": {
+      "arms": [
+        {
+          "bearing": 44,
+          "label": "EB"
+        },
+        {
+          "bearing": 227,
+          "label": "WB"
+        },
+        {
+          "bearing": 139,
+          "label": "NB"
+        },
+        {
+          "bearing": 319,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 115,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 55,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N3": {
+      "arms": [
+        {
+          "bearing": 94,
+          "label": "EB"
+        },
+        {
+          "bearing": 233,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 15,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 120,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 30,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N4": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 20,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 120,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 25,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N5": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 112,
+            "yellow": 4,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 10,
+            "yellow": 3,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 36,
+            "yellow": 4,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N6": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 130,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 40,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N7": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 113,
+            "yellow": 3,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 15,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 33,
+            "yellow": 3,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N9": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 135,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 35,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N8": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 125,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 15,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 25,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N10": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 143,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 23,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N11": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 133,
+            "yellow": 3,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 35,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N12": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 29,
+            "yellow": 4,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              }
+            ]
+          },
+          {
+            "green": 82,
+            "yellow": 4,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 10,
+            "yellow": 0,
+            "allRed": 0,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 37,
+            "yellow": 4,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N13": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 339,
+          "label": "NB"
+        },
+        {
+          "bearing": 159,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 140,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 30,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N14": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 0,
+          "label": "NB"
+        },
+        {
+          "bearing": 180,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 130,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 40,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N15": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 0,
+          "label": "NB"
+        },
+        {
+          "bearing": 180,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 145,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 25,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N16": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 0,
+          "label": "NB"
+        },
+        {
+          "bearing": 180,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 15,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              }
+            ]
+          },
+          {
+            "green": 82,
+            "yellow": 3,
+            "allRed": 5,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 10,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 47,
+            "yellow": 3,
+            "allRed": 5,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N17": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 349,
+          "label": "NB"
+        },
+        {
+          "bearing": 169,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 91,
+            "yellow": 4,
+            "allRed": 5,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 10,
+            "yellow": 0,
+            "allRed": 0,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 24,
+            "yellow": 3,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 32,
+            "yellow": 3,
+            "allRed": 5,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N18": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 349,
+          "label": "NB"
+        },
+        {
+          "bearing": 169,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 104,
+            "yellow": 3,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 10,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 50,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N19": {
+      "arms": [
+        {
+          "bearing": 134,
+          "label": "EB"
+        },
+        {
+          "bearing": 317,
+          "label": "WB"
+        },
+        {
+          "bearing": 0,
+          "label": "NB"
+        },
+        {
+          "bearing": 179,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 67,
+            "yellow": 4,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 67,
+            "yellow": 4,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 22,
+            "yellow": 4,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N20": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 349,
+          "label": "NB"
+        },
+        {
+          "bearing": 169,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 115,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 20,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 30,
+            "yellow": 3,
+            "allRed": 2,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N6_大興經國": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 0,
+          "label": "NB"
+        },
+        {
+          "bearing": 180,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 0,
+        "phases": [
+          {
+            "green": 28,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 38,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 53,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 33,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": true,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N4_南平經國": {
+      "arms": [
+        {
+          "bearing": 76,
+          "label": "EB"
+        },
+        {
+          "bearing": 256,
+          "label": "WB"
+        },
+        {
+          "bearing": 0,
+          "label": "NB"
+        },
+        {
+          "bearing": 180,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 55,
+        "phases": [
+          {
+            "green": 68,
+            "yellow": 3,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 24,
+            "yellow": 3,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": true,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 30,
+            "yellow": 0,
+            "allRed": 0,
+            "movements": [
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": true
+              }
+            ]
+          },
+          {
+            "green": 5,
+            "yellow": 0,
+            "allRed": 0,
+            "movements": [
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 33,
+            "yellow": 3,
+            "allRed": 4,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N9_民光春日": {
+      "arms": [
+        {
+          "bearing": 90,
+          "label": "EB"
+        },
+        {
+          "bearing": 270,
+          "label": "WB"
+        },
+        {
+          "bearing": 0,
+          "label": "NB"
+        },
+        {
+          "bearing": 180,
+          "label": "SB"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 80,
+        "phases": [
+          {
+            "green": 14,
+            "yellow": 3,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 59,
+            "yellow": 3,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 29,
+            "yellow": 3,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 10,
+            "yellow": 0,
+            "allRed": 0,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 42,
+            "yellow": 3,
+            "allRed": 5,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "N8_經國慈文": {
+      "arms": [
+        {
+          "bearing": 75,
+          "label": "EB"
+        },
+        {
+          "bearing": 255,
+          "label": "WB"
+        },
+        {
+          "bearing": 332,
+          "label": "NB"
+        },
+        {
+          "bearing": 152,
+          "label": "SB"
+        },
+        {
+          "bearing": 29,
+          "label": "臂5"
+        }
+      ],
+      "plan": {
+        "cycle": 180,
+        "offset": 85,
+        "phases": [
+          {
+            "green": 58,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 13,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": true,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          },
+          {
+            "green": 38,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": true,
+                "right": true
+              }
+            ]
+          },
+          {
+            "green": 43,
+            "yellow": 4,
+            "allRed": 3,
+            "movements": [
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": true,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              },
+              {
+                "thru": false,
+                "left": false,
+                "right": false
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "tsdPresets": [
+    {
+      "id": "tsd1793931012994",
+      "name": "南向1-10",
+      "hiddenIds": [
+        "N4_南平經國",
+        "N6_大興經國",
+        "N8_經國慈文",
+        "N9_民光春日",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20",
+        "N12",
+        "N11"
+      ],
+      "phaseSelection": {
+        "N1": [
+          0
+        ],
+        "N2": [
+          0,
+          1
+        ],
+        "N3": [
+          0,
+          1
+        ],
+        "N4_南平經國": [
+          0
+        ],
+        "N4": [
+          0,
+          1
+        ],
+        "N5": [
+          0
+        ],
+        "N6": [
+          0
+        ],
+        "N7": [
+          0
+        ],
+        "N8": [
+          0,
+          1
+        ],
+        "N9": [
+          0
+        ],
+        "N6_大興經國": [
+          0
+        ],
+        "N10": [
+          0
+        ],
+        "N11": [
+          0
+        ],
+        "N12": [
+          0,
+          1
+        ],
+        "N13": [
+          0
+        ],
+        "N8_經國慈文": [
+          0
+        ],
+        "N14": [
+          0
+        ],
+        "N15": [
+          0
+        ],
+        "N16": [
+          0
+        ],
+        "N17": [
+          0
+        ],
+        "N18": [
+          0
+        ],
+        "N19": [
+          0
+        ],
+        "N20": [
+          0
+        ],
+        "N9_民光春日": [
+          0
+        ]
+      },
+      "segDist": {},
+      "sortMode": "WE",
+      "gbEnabled": true,
+      "gbDirection": "FWD",
+      "gbSpeed": 40
+    },
+    {
+      "id": "tsd1793932975687",
+      "name": "北向10-1",
+      "hiddenIds": [
+        "N4_南平經國",
+        "N6_大興經國",
+        "N8_經國慈文",
+        "N9_民光春日",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20",
+        "N12",
+        "N11"
+      ],
+      "phaseSelection": {
+        "N1": [
+          0
+        ],
+        "N2": [
+          1
+        ],
+        "N3": [
+          1
+        ],
+        "N4_南平經國": [
+          0
+        ],
+        "N4": [
+          1
+        ],
+        "N5": [
+          0,
+          1
+        ],
+        "N6": [
+          0
+        ],
+        "N7": [
+          0,
+          1
+        ],
+        "N8": [
+          0
+        ],
+        "N9": [
+          0
+        ],
+        "N6_大興經國": [
+          0
+        ],
+        "N10": [
+          0
+        ],
+        "N11": [
+          0
+        ],
+        "N12": [
+          0,
+          1
+        ],
+        "N13": [
+          0
+        ],
+        "N8_經國慈文": [
+          0
+        ],
+        "N14": [
+          0
+        ],
+        "N15": [
+          0
+        ],
+        "N16": [
+          0
+        ],
+        "N17": [
+          0
+        ],
+        "N18": [
+          0
+        ],
+        "N19": [
+          0
+        ],
+        "N20": [
+          0
+        ],
+        "N9_民光春日": [
+          0
+        ]
+      },
+      "segDist": {},
+      "sortMode": "WE",
+      "gbEnabled": true,
+      "gbDirection": "REV",
+      "gbSpeed": 40
+    }
+  ]
+}

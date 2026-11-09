@@ -18,34 +18,57 @@
         </div>
 
         <div id="sidebar">
-            <h2>控制面板</h2>
-            <div class="control-group">
-                <button id="btn-add-node">📍 建立路口</button>
-                <button id="btn-add-link">🔗 建立路段</button>
-                <button id="btn-select">🖱️ 選取</button>
+            <div class="sidebar-header">
+                <h2>控制面板</h2>
+                <div class="file-actions">
+                    <input type="file" id="file-load" accept=".json" style="display: none;">
+                    <button id="btn-load" title="讀取專案" onclick="document.getElementById('file-load').click()">📂 開啟</button>
+                    <button id="btn-save" title="儲存專案">💾 儲存</button>
+                </div>
             </div>
 
+            <h4 class="section-title">📁 專案 / 方案</h4>
+            <div class="control-group">
+                <select id="select-project" title="選擇專案"></select>
+                <select id="select-plan" title="選擇時制方案"></select>
+                <button id="btn-save-as-plan" hidden>＋ 另存新方案</button>
+            </div>
+
+            <h4 class="section-title">編輯</h4>
+            <div class="control-group">
+                <div class="segmented">
+                    <button id="btn-add-node">📍 建立路口</button>
+                    <button id="btn-select">🖱️ 選取</button>
+                </div>
+                <button id="btn-all-nodes">📋 路口總覽</button>
+            </div>
+
+            <h4 class="section-title">⏱️ 時制計畫</h4>
+            <div class="control-group">
+                <input type="file" id="file-load-plans" accept=".json" style="display: none;">
+                <button id="btn-load-plans" onclick="document.getElementById('file-load-plans').click()">📥 匯入</button>
+                <button id="btn-save-plans">📤 匯出</button>
+            </div>
+
+            <h4 class="section-title">模擬</h4>
             <div class="control-group simulation-controls">
                 <button id="btn-play" class="btn-inactive">▶️ 開始模擬</button>
-                <button id="btn-pause" class="btn-inactive">⏸️ 暫停</button>
                 <button id="btn-reset" class="btn-inactive">↩️ 重設</button>
                 <div class="speed-row">
                     <span>模擬速度 <strong id="speed-display">1x</strong></span>
                     <input type="range" id="select-speed" min="1" max="32" value="1" step="1">
                 </div>
                 <div class="timeline-row">
+                    <span>時間軸</span>
                     <input type="range" id="sim-timeline" min="0" max="0" value="0" step="1">
                     <span id="timeline-label">0 / 0 秒</span>
                 </div>
             </div>
 
+            <h4 class="section-title">分析與顯示</h4>
             <div class="control-group">
-                <button id="btn-all-nodes">📋 路口總覽</button>
                 <button id="btn-arterial">📈 幹道分析</button>
-                <button id="btn-flow-toggle" class="active">🚗 車流動線（開）</button>
-                <button id="btn-save">💾 儲存專案</button>
-                <input type="file" id="file-load" accept=".json" style="display: none;">
-                <button id="btn-load" onclick="document.getElementById('file-load').click()">📂 讀取專案</button>
+                <label class="toggle-row"><input type="checkbox" id="chk-flow" checked> 🚗 顯示車流動線</label>
             </div>
 
             <div id="node-status-panel" style="display:none;">
@@ -102,45 +125,65 @@
     <div id="tsd-overlay">
         <div id="tsd-panel">
             <div class="tsd-header">
-                <h3>📈 幹道時空圖分析 (Time-Space Diagram)</h3>
+                <div class="tsd-title">
+                    <button id="btn-tsd-collapse" title="收合 / 展開設定欄">◀ 設定</button>
+                    <h3>📈 幹道時空圖分析</h3>
+                    <span id="tsd-summary"></span>
+                </div>
                 <div class="tsd-header-actions">
                     <button id="tsd-btn-play" class="btn-inactive">▶️ 開始模擬</button>
-                    <button id="tsd-btn-pause" class="btn-inactive">⏸️ 暫停</button>
                     <button id="btn-close-tsd">✕ 關閉</button>
                 </div>
             </div>
-            <span class="tsd-hint">路口依實際地理距離等比例排列，縱軸間距反映真實距離，綠/黃/紅帶對應各路口號誌狀態</span>
-            <div class="tsd-controls-header">
-                <label>排序方向
-                    <select id="tsd-sort-mode">
-                        <option value="WE">西 → 東</option>
-                        <option value="EW">東 → 西</option>
-                        <option value="SN">南 → 北</option>
-                        <option value="NS">北 → 南</option>
-                    </select>
-                </label>
-                點選數字以選擇納入綠寬的時相（可複選）
-            </div>
-            <div id="tsd-node-filter-bar">
-                <span class="node-chips-label">顯示路口：</span>
-                <div id="tsd-node-chips"></div>
-            </div>
-            <div id="tsd-controls"></div>
-            <div id="gb-bar">
-                <button id="btn-gb-toggle">🟢 繪製綠寬帶</button>
-                <div id="gb-settings" hidden>
-                    <label>方向
-                        <select id="gb-dir">
-                            <option value="FWD">→ 順排序方向</option>
-                            <option value="REV">← 逆排序方向</option>
+            <div id="tsd-body">
+                <div id="tsd-side">
+                    <section class="tsd-step">
+                        <div class="tsd-step-title">① 幹道設定 <span id="tsd-preset-plan" class="tsd-step-note"></span></div>
+                        <select id="tsd-preset-select"></select>
+                        <div class="tsd-preset-btns">
+                            <button id="btn-tsd-preset-save" title="覆寫目前選取的設定">💾 儲存</button>
+                            <button id="btn-tsd-preset-saveas">＋ 另存新設定</button>
+                            <button id="btn-tsd-preset-rename" title="重新命名">✏️</button>
+                            <button id="btn-tsd-preset-delete" title="刪除">🗑️</button>
+                        </div>
+                        <div id="tsd-preset-msg" class="tsd-step-note"></div>
+                    </section>
+                    <section class="tsd-step">
+                        <div class="tsd-step-title">② 排序方向</div>
+                        <select id="tsd-sort-mode">
+                            <option value="WE">西 → 東</option>
+                            <option value="EW">東 → 西</option>
+                            <option value="SN">南 → 北</option>
+                            <option value="NS">北 → 南</option>
                         </select>
-                    </label>
-                    <label>速率 <input id="gb-speed-input" type="number" value="40" min="1" max="200"> km/h</label>
+                    </section>
+                    <section class="tsd-step">
+                        <div class="tsd-step-title">③ 路口與幹道時相</div>
+                        <div class="tsd-step-note">勾選要顯示的路口；點數字選擇幹道綠燈時相（可複選）</div>
+                        <div id="tsd-controls"></div>
+                    </section>
+                    <section class="tsd-step">
+                        <div class="tsd-step-title">④ 綠寬帶</div>
+                        <button id="btn-gb-toggle">🟢 繪製綠寬帶</button>
+                        <div id="gb-settings" hidden>
+                            <label>方向
+                                <select id="gb-dir">
+                                    <option value="FWD"></option>
+                                    <option value="REV"></option>
+                                </select>
+                            </label>
+                            <label>速率 <input id="gb-speed-input" type="number" value="40" min="1" max="200"> km/h</label>
+                            <div id="gb-summary"></div>
+                        </div>
+                    </section>
                 </div>
-            </div>
-            <div id="tsd-canvas-wrap">
-                <canvas id="ts-canvas"></canvas>
-                <div id="tsd-scrollbar"><div id="tsd-scroll-inner"></div></div>
+                <div id="tsd-main">
+                    <span class="tsd-hint">縱軸間距依實際距離；左右拖曳圖面可回看（最多 10 分鐘），滾輪捲動路口</span>
+                    <div id="tsd-canvas-wrap">
+                        <canvas id="ts-canvas"></canvas>
+                        <div id="tsd-scrollbar"><div id="tsd-scroll-inner"></div></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
